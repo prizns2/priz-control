@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PRIZ Control</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <script>
+    if (location.protocol === 'file:') {
+      document.addEventListener('DOMContentLoaded', () => {
+        document.body.innerHTML = `<div style="font-family:Segoe UI,Arial,sans-serif;background:#090a0f;color:#fff;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box"><div style="max-width:620px;background:#11131a;border:1px solid #2a2d38;border-radius:18px;padding:28px"><div style="font-weight:800;font-size:24px;margin-bottom:10px">PRIZ Control нужно запускать через START.bat</div><div style="color:#aeb4c4;line-height:1.55">Прямой запуск <b>index.html</b> открывает адрес <b>file://</b>. Из-за этого браузер не сможет отправлять фото и видео в Backblaze. Закрой эту вкладку и дважды нажми <b>START.bat</b> — приложение откроется по адресу <b>http://localhost:3000</b>.</div></div></div>`;
+      });
+    }
+  </script>
+  <div id="toast" class="toast"></div>
+
+  <section id="loginView" class="login-view">
+    <div class="login-shell">
+      <div class="brand-mark">P</div>
+      <div class="login-card">
+        <div class="eyebrow">PRIZ CONTROL</div>
+        <h1>Контроль нарушений</h1>
+        <p class="muted">Серверная версия · Supabase + Backblaze B2</p>
+        <form id="loginForm" class="stack-lg">
+          <label>Логин<input id="loginUser" autocomplete="username" placeholder="prizns" required></label>
+          <label>Пароль<input id="loginPass" type="password" autocomplete="current-password" placeholder="Ваш пароль" required></label>
+          <button class="btn primary wide" type="submit" id="loginBtn">Войти</button>
+        </form>
+        <div class="demo-box online-box">
+          <b>Онлайн-база</b>
+          <div class="muted small">Записи и аккаунты хранятся в Supabase. Фото и видео — в закрытом Backblaze B2.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="appView" class="app hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><div class="brand-mark mini">P</div><div><b>PRIZ</b><span>CONTROL</span></div></div>
+      <nav id="nav"></nav>
+      <div class="sidebar-bottom">
+        <div id="userCard" class="user-card"></div>
+        <button id="logoutBtn" class="btn ghost wide">Выйти</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow" id="pageEyebrow">ХАРЬКОВ</div>
+          <h2 id="pageTitle">Главная</h2>
+        </div>
+        <div class="top-actions">
+          <select id="regionSelect" class="select compact"></select>
+          <button class="btn primary" id="quickAddBtn">+ Добавить</button>
+        </div>
+      </header>
+      <section id="content" class="content"></section>
+    </main>
+  </div>
+
+  <dialog id="recordDialog" class="dialog wide-dialog"><div id="recordDialogBody"></div></dialog>
+  <dialog id="viewDialog" class="dialog wide-dialog"><div id="viewDialogBody"></div></dialog>
+  <dialog id="storeDialog" class="dialog wide-dialog"><div id="storeDialogBody"></div></dialog>
+  <dialog id="userDialog" class="dialog wide-dialog"><div id="userDialogBody"></div></dialog>
+  <dialog id="mediaDialog" class="dialog fullscreen-media-dialog"><div id="mediaDialogBody"></div></dialog>
+  <dialog id="confirmDialog" class="dialog confirm-dialog">
+    <form method="dialog" class="dialog-card">
+      <h3 id="confirmTitle">Подтверждение</h3>
+      <p id="confirmText" class="muted"></p>
+      <div class="dialog-actions"><button value="cancel" class="btn ghost">Отмена</button><button id="confirmOk" value="ok" class="btn danger">Удалить</button></div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>
