@@ -19,6 +19,16 @@
       if (btn) btn.disabled = true;
     };
   </script>
+
+  <style>
+    .mfa-view{min-height:100vh;display:grid;place-items:center;padding:24px;background:#090a0f;color:#fff;box-sizing:border-box}
+    .mfa-shell{width:min(440px,100%);display:grid;gap:16px;justify-items:center}
+    .mfa-card{width:100%;background:#11131a;border:1px solid #2a2d38;border-radius:18px;padding:26px;box-sizing:border-box;box-shadow:0 24px 70px rgba(0,0,0,.35)}
+    .mfa-card h2{margin:4px 0 8px}.mfa-card p{line-height:1.5}.mfa-card .mfa-qr{display:block;width:220px;max-width:100%;margin:18px auto;background:#fff;border-radius:12px;padding:10px;box-sizing:border-box}
+    .mfa-code{width:100%;font-size:22px;letter-spacing:5px;text-align:center;box-sizing:border-box}
+    .mfa-secret{margin-top:12px;padding:10px 12px;border:1px solid #2a2d38;border-radius:10px;background:#0b0d12;word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+    .mfa-actions{display:grid;gap:10px;margin-top:16px}
+  </style>
 </head>
 <body>
   <script>
@@ -51,6 +61,22 @@
         <div class="demo-box online-box">
           <b>Онлайн-база</b>
           <div class="muted small">Записи и аккаунты хранятся в Supabase. Фото и видео — в закрытом Backblaze B2.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <section id="mfaView" class="mfa-view hidden">
+    <div class="mfa-shell">
+      <div class="brand-mark">P</div>
+      <div class="mfa-card">
+        <div class="eyebrow">PRIZ CONTROL · 2FA</div>
+        <h2 id="mfaTitle">Дополнительная защита</h2>
+        <p id="mfaText" class="muted"></p>
+        <div id="mfaBody"></div>
+        <div class="mfa-actions">
+          <button id="mfaLogoutBtn" class="btn ghost wide" type="button">Выйти из аккаунта</button>
         </div>
       </div>
     </div>
@@ -115,7 +141,147 @@
           if (window.turnstile) {
             try { window.turnstile.reset(); } catch (_) {}
           }
+          setTimeout(() => {
+            const btn = document.getElementById('loginBtn');
+            if (btn && !window.prizCaptchaToken) btn.disabled = true;
+          }, 0);
         }
+      };
+
+      const originalShowApp = showApp;
+      const originalShowLogin = showLogin;
+      let mfaGateRunning = false;
+
+      function hideMfa() {
+        document.getElementById('mfaView')?.classList.add('hidden');
+      }
+      function showMfa() {
+        document.getElementById('loginView')?.classList.add('hidden');
+        document.getElementById('appView')?.classList.add('hidden');
+        document.getElementById('mfaView')?.classList.remove('hidden');
+      }
+      function setMfaBusy(btn, busy, text='Проверяем…') {
+        if (!btn) return;
+        if (busy) { btn.dataset.oldText = btn.textContent; btn.textContent = text; btn.disabled = true; }
+        else { btn.textContent = btn.dataset.oldText || btn.textContent; btn.disabled = false; }
+      }
+      async function logoutFromMfa() {
+        await sb.auth.signOut();
+        currentUser = null;
+        hideMfa();
+        originalShowLogin();
+        if (window.turnstile) { try { window.turnstile.reset(); } catch (_) {} }
+      }
+      document.getElementById('mfaLogoutBtn').onclick = logoutFromMfa;
+
+      async function showTotpChallenge(factor) {
+        showMfa();
+        document.getElementById('mfaTitle').textContent = 'Введите код 2FA';
+        document.getElementById('mfaText').textContent = 'Откройте приложение-аутентификатор и введите текущий 6-значный код.';
+        const body = document.getElementById('mfaBody');
+        body.innerHTML = `<form id="mfaChallengeForm" class="stack-lg"><label>Код из приложения<input id="mfaChallengeCode" class="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required></label><button id="mfaChallengeBtn" class="btn primary wide" type="submit">Подтвердить</button></form>`;
+        const form = document.getElementById('mfaChallengeForm');
+        const codeInput = document.getElementById('mfaChallengeCode');
+        codeInput.focus();
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          const btn = document.getElementById('mfaChallengeBtn');
+          const code = codeInput.value.replace(/\D/g,'').slice(0,6);
+          if (code.length !== 6) { toast('Введите 6-значный код', true); return; }
+          setMfaBusy(btn, true);
+          try {
+            const { data: challenge, error: cErr } = await sb.auth.mfa.challenge({ factorId: factor.id });
+            if (cErr) throw cErr;
+            const { error: vErr } = await sb.auth.mfa.verify({ factorId: factor.id, challengeId: challenge.id, code });
+            if (vErr) throw vErr;
+            const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+            if (aal?.currentLevel !== 'aal2') throw new Error('Не удалось подтвердить второй фактор');
+            hideMfa();
+            originalShowApp();
+          } catch (err) {
+            codeInput.value = '';
+            codeInput.focus();
+            toast('Неверный или просроченный код 2FA', true);
+          } finally { setMfaBusy(btn, false); }
+        };
+      }
+
+      async function showTotpEnrollment(existingFactors=[]) {
+        showMfa();
+        document.getElementById('mfaTitle').textContent = 'Настройка 2FA для владельца';
+        document.getElementById('mfaText').textContent = 'Отсканируйте QR-код в Google Authenticator, Microsoft Authenticator, 1Password или другом TOTP-приложении. После этого введите 6-значный код.';
+        const body = document.getElementById('mfaBody');
+        body.innerHTML = '<div class="muted">Создаём защищённый фактор…</div>';
+        try {
+          for (const f of existingFactors.filter(x => x.status !== 'verified')) {
+            try { await sb.auth.mfa.unenroll({ factorId: f.id }); } catch (_) {}
+          }
+          const { data: enrolled, error: eErr } = await sb.auth.mfa.enroll({ factorType: 'totp' });
+          if (eErr) throw eErr;
+          const factorId = enrolled.id;
+          const qr = enrolled.totp?.qr_code || '';
+          const secret = enrolled.totp?.secret || '';
+          body.innerHTML = `<img class="mfa-qr" src="${qr}" alt="QR-код 2FA"><label>Код из приложения<input id="mfaEnrollCode" class="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required></label><div class="mfa-secret"><b>Резервный ключ:</b><br>${secret}</div><div class="muted small" style="margin-top:8px">Не отправляйте QR-код и резервный ключ другим людям.</div><button id="mfaEnrollBtn" class="btn primary wide" type="button" style="margin-top:16px">Включить 2FA</button>`;
+          const codeInput = document.getElementById('mfaEnrollCode');
+          const btn = document.getElementById('mfaEnrollBtn');
+          codeInput.focus();
+          btn.onclick = async () => {
+            const code = codeInput.value.replace(/\D/g,'').slice(0,6);
+            if (code.length !== 6) { toast('Введите 6-значный код', true); return; }
+            setMfaBusy(btn, true, 'Включаем…');
+            try {
+              const { data: challenge, error: cErr } = await sb.auth.mfa.challenge({ factorId });
+              if (cErr) throw cErr;
+              const { error: vErr } = await sb.auth.mfa.verify({ factorId, challengeId: challenge.id, code });
+              if (vErr) throw vErr;
+              const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+              if (aal?.currentLevel !== 'aal2') throw new Error('Не удалось получить AAL2');
+              toast('2FA включена');
+              hideMfa();
+              originalShowApp();
+            } catch (err) {
+              codeInput.value = '';
+              codeInput.focus();
+              toast('Код не подошёл. Введите новый код из приложения.', true);
+            } finally { setMfaBusy(btn, false); }
+          };
+        } catch (err) {
+          console.error(err);
+          body.innerHTML = '<div class="empty"><b>Не удалось настроить 2FA</b>Выйдите из аккаунта и попробуйте снова.</div>';
+        }
+      }
+
+      async function ownerMfaGate() {
+        if (mfaGateRunning) return;
+        if (!currentUser || currentUser.role !== 'owner') { hideMfa(); originalShowApp(); return; }
+        mfaGateRunning = true;
+        try {
+          const [{ data: aal, error: aalErr }, { data: factors, error: fErr }] = await Promise.all([
+            sb.auth.mfa.getAuthenticatorAssuranceLevel(),
+            sb.auth.mfa.listFactors()
+          ]);
+          if (aalErr) throw aalErr;
+          if (fErr) throw fErr;
+          const totp = factors?.totp || [];
+          const verified = totp.filter(f => f.status === 'verified');
+          if (verified.length && aal?.currentLevel === 'aal2') { hideMfa(); originalShowApp(); return; }
+          if (verified.length) { await showTotpChallenge(verified[0]); return; }
+          await showTotpEnrollment(totp);
+        } catch (err) {
+          console.error(err);
+          showMfa();
+          document.getElementById('mfaTitle').textContent = 'Ошибка проверки 2FA';
+          document.getElementById('mfaText').textContent = 'Не удалось проверить дополнительную защиту. Выйдите из аккаунта и попробуйте снова.';
+          document.getElementById('mfaBody').innerHTML = '';
+        } finally { mfaGateRunning = false; }
+      }
+
+      showLogin = function() {
+        hideMfa();
+        originalShowLogin();
+      };
+      showApp = function() {
+        ownerMfaGate();
       };
     })();
   </script>
