@@ -5,6 +5,20 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>PRIZ Control</title>
   <link rel="stylesheet" href="styles.css" />
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script>
+    window.prizCaptchaToken = null;
+    window.prizTurnstileSuccess = function(token) {
+      window.prizCaptchaToken = token;
+      const btn = document.getElementById('loginBtn');
+      if (btn) btn.disabled = false;
+    };
+    window.prizTurnstileReset = function() {
+      window.prizCaptchaToken = null;
+      const btn = document.getElementById('loginBtn');
+      if (btn) btn.disabled = true;
+    };
+  </script>
 </head>
 <body>
   <script>
@@ -26,7 +40,13 @@
         <form id="loginForm" class="stack-lg">
           <label>Логин<input id="loginUser" autocomplete="username" placeholder="prizns" required></label>
           <label>Пароль<input id="loginPass" type="password" autocomplete="current-password" placeholder="Ваш пароль" required></label>
-          <button class="btn primary wide" type="submit" id="loginBtn">Войти</button>
+          <div class="cf-turnstile"
+               data-sitekey="0x4AAAAAAErcWrEeyY3sR1Sw"
+               data-theme="dark"
+               data-callback="prizTurnstileSuccess"
+               data-expired-callback="prizTurnstileReset"
+               data-error-callback="prizTurnstileReset"></div>
+          <button class="btn primary wide" type="submit" id="loginBtn" disabled>Войти</button>
         </form>
         <div class="demo-box online-box">
           <b>Онлайн-база</b>
@@ -76,5 +96,28 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
+  <script>
+    (() => {
+      const originalSignInWithPassword = sb.auth.signInWithPassword.bind(sb.auth);
+      sb.auth.signInWithPassword = async (credentials) => {
+        const captchaToken = window.prizCaptchaToken;
+        if (!captchaToken) throw new Error('Подтвердите, что вы не робот');
+        try {
+          return await originalSignInWithPassword({
+            ...credentials,
+            options: {
+              ...(credentials?.options || {}),
+              captchaToken
+            }
+          });
+        } finally {
+          window.prizTurnstileReset();
+          if (window.turnstile) {
+            try { window.turnstile.reset(); } catch (_) {}
+          }
+        }
+      };
+    })();
+  </script>
 </body>
 </html>
