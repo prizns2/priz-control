@@ -360,6 +360,25 @@
         cancelInlineEdit(cell, input);
       }
     });
+
+    // Если старший ввёл значение и сразу кликнул в другую ячейку —
+    // автоматически сохраняем, чтобы не оставались "фиолетовые" незаписанные поля.
+    input.addEventListener('blur', () => {
+      setTimeout(async () => {
+        if (!document.body.contains(input)) return;
+        if (input.dataset.saving === '1') return;
+
+        const value = normalizeFastStatus(input.value);
+
+        if (value && !FAST_VALID.has(value)) {
+          toast('Допустимо: 1, 1В, 1Л, В, Л', true);
+          cancelInlineEdit(cell, input);
+          return;
+        }
+
+        await saveQuickStatus(cell, input);
+      }, 0);
+    });
   }
 
   function bindQuickEditing(table) {
