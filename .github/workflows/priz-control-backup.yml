@@ -68,7 +68,7 @@ jobs:
           supabase db dump --db-url "$SUPABASE_DB_URL" -f "$DIR/schema.sql"
 
           echo "Backing up data..."
-          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$DIR/data.sql" --data-only --use-copy
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$DIR/data.sql" --data-only --use-copy -x "storage.buckets_vectors" -x "storage.vector_indexes"
 
           cat > "$DIR/backup-info.txt" <<EOF
           project=PRIZ Control
