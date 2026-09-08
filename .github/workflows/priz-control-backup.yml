@@ -44,6 +44,23 @@ jobs:
             fi
           done
 
+      - name: Ensure PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+
+      - name: Mark backup running
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" \
+            --variable ON_ERROR_STOP=1 \
+            --command "update public.system_config set backup_last_status='running', backup_updated_at=now() where singleton=true;"
+
       - name: Create database dump
         shell: bash
         run: |
@@ -165,3 +182,35 @@ jobs:
             >/dev/null
 
           echo "Backup upload verified: ${PREFIX}/${ARCHIVE}"
+
+      - name: Mark backup successful
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" \
+            --variable ON_ERROR_STOP=1 \
+            --set=archive="$ARCHIVE" \
+            --set=run_id="$GITHUB_RUN_ID" <<'SQL'
+          update public.system_config
+          set backup_last_status='ok',
+              backup_last_success_at=now(),
+              backup_last_archive=:'archive',
+              backup_last_run_id=:'run_id',
+              backup_updated_at=now()
+          where singleton=true;
+          SQL
+
+      - name: Mark backup failed
+        if: failure()
+        shell: bash
+        run: |
+          if command -v psql >/dev/null 2>&1 && [ -n "${SUPABASE_DB_URL:-}" ]; then
+            psql "$SUPABASE_DB_URL" \
+              --set=run_id="$GITHUB_RUN_ID" <<'SQL' || true
+            update public.system_config
+            set backup_last_status='failed',
+                backup_last_run_id=:'run_id',
+                backup_updated_at=now()
+            where singleton=true;
+            SQL
+          fi
