@@ -1,4 +1,4 @@
-const APP_VERSION='0.4.7';
+const APP_VERSION='0.4.8';
 const SUPABASE_URL='https://oxeqdypboelsczsauxlr.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_0Z1VcYQBS9VmZxW41Nq-PA_997MysiT';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
@@ -118,18 +118,41 @@ async function fetchRecordById(id){
   const item=fromDbRecord(r,attachments);recordCache=[item,...recordCache.filter(x=>x.id!==id)];return item;
 }
 async function fetchRecords(){const rows=await fetchAllPaged(()=>{let q=sb.from('records').select('*').order('record_date',{ascending:false}).order('created_at',{ascending:false});return scopedRecordsQuery(q)});recordCache=rows.map(r=>fromDbRecord(r,[]));return recordCache}
-function safeFilterText(v){return String(v||'').trim().replace(/[(),]/g,' ').replace(/[%_]/g,' ')}
-function buildRecordQuery(filters={},withCount=false){
-  let q=withCount?sb.from('records').select('*',{count:'exact'}):sb.from('records').select('*');q=scopedRecordsQuery(q);
-  if(filters.kind)q=q.eq('kind',dbKind(filters.kind));
-  if(filters.person)q=q.ilike('employee_name',`%${safeFilterText(filters.person)}%`);
-  if(filters.manager)q=q.eq('manager_name_snapshot',filters.manager);
-  if(filters.from)q=q.gte('record_date',filters.from);if(filters.to)q=q.lte('record_date',filters.to);
-  const needle=safeFilterText(filters.q);if(needle){const pat=`%${needle}%`;q=q.or(`store_name_snapshot.ilike.${pat},manager_name_snapshot.ilike.${pat},violation_type_snapshot.ilike.${pat},employee_name.ilike.${pat},story.ilike.${pat},created_by_name_snapshot.ilike.${pat}`)}
-  return q.order('record_date',{ascending:false}).order('created_at',{ascending:false});
+function secureSearchArgs(filters={},offset=0,limit=100){
+  const regionSel=$('#regionSelect')?.value||'all';
+  return {
+    p_region_id:regionSel==='all'?null:(REGIONS[regionSel]?.id||null),
+    p_kind:filters.kind?dbKind(filters.kind):null,
+    p_person:String(filters.person||'').trim()||null,
+    p_manager:String(filters.manager||'').trim()||null,
+    p_from:filters.from||null,
+    p_to:filters.to||null,
+    p_query:String(filters.q||'').trim()||null,
+    p_offset:Math.max(0,Number(offset)||0),
+    p_limit:Math.min(1000,Math.max(1,Number(limit)||100))
+  };
 }
-async function fetchRecordPage(filters,page=0,pageSize=100){const start=page*pageSize;const {data,error,count}=await buildRecordQuery(filters,true).range(start,start+pageSize-1);if(error)throw error;const rows=(data||[]).map(r=>fromDbRecord(r,[]));recordCache=rows;return {rows,count:Number(count||0)}}
-async function fetchFilteredRecords(filters){const rows=await fetchAllPaged(()=>buildRecordQuery(filters,false),1000,50000);return rows.map(r=>fromDbRecord(r,[]))}
+async function fetchRecordPage(filters,page=0,pageSize=100){
+  const start=Math.max(0,page*pageSize);
+  const {data,error}=await sb.rpc('search_records_secure',secureSearchArgs(filters,start,pageSize));
+  if(error)throw error;
+  const rawRows=Array.isArray(data?.rows)?data.rows:[];
+  const rows=rawRows.map(r=>fromDbRecord(r,[]));
+  recordCache=rows;
+  return {rows,count:Number(data?.count||0)};
+}
+async function fetchFilteredRecords(filters){
+  const pageSize=1000,maxRows=50000;
+  const out=[];
+  for(let offset=0;offset<maxRows;offset+=pageSize){
+    const {data,error}=await sb.rpc('search_records_secure',secureSearchArgs(filters,offset,pageSize));
+    if(error)throw error;
+    const rawRows=Array.isArray(data?.rows)?data.rows:[];
+    out.push(...rawRows);
+    if(rawRows.length<pageSize||out.length>=Number(data?.count||0))break;
+  }
+  return out.slice(0,maxRows).map(r=>fromDbRecord(r,[]));
+}
 async function dashboardCount(kind,date){let q=sb.from('records').select('id',{count:'exact',head:true}).eq('kind',kind).eq('record_date',date);q=scopedRecordsQuery(q);const {count,error}=await q;if(error)throw error;return Number(count||0)}
 async function dashboardLatest(kind,limit=7){let q=sb.from('records').select('*').eq('kind',kind).order('record_date',{ascending:false}).order('created_at',{ascending:false}).limit(limit);q=scopedRecordsQuery(q);const {data,error}=await q;if(error)throw error;return (data||[]).map(r=>fromDbRecord(r,[]))}
 function fromDbRecord(r,attachments=[]){const e=r.evaluation_data||{};const kind=uiKind(r.kind);return {id:r.id,kind,region:regionCodeFromUuid(r.region_id),regionId:r.region_id,date:r.record_date,storeId:r.store_id,store:r.store_name_snapshot||r.store_number_snapshot||'',managerId:r.manager_id,manager:r.manager_name_snapshot||'',violationTypeId:r.violation_type_id,violationType:r.violation_type_snapshot||'',employee:kind==='eval'?'':(r.employee_name||''),seller:kind==='eval'?(r.employee_name||''):'',story:r.story||'',damageCustomer:formatMoneyValue(r.damage_customer),damageStore:formatMoneyValue(r.damage_store),repaidCustomer:formatMoneyValue(r.reimbursed_customer),repaidStore:formatMoneyValue(r.reimbursed_store),startTime:e.start_time||'',buyerGender:e.buyer_gender||'ж',scores:Array.isArray(e.scores)?e.scores.map(Number):[0,0,0,0,0],comment:e.comment||'',attachments,createdAt:r.created_at,createdBy:r.created_by,createdByName:r.created_by_name_snapshot||'',updatedAt:r.updated_at,updatedBy:r.updated_by};}
