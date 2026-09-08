@@ -1,0 +1,167 @@
+name: PRIZ Control Database Backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 * * *'
+      timezone: 'Europe/Kyiv'
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Backup Supabase to Backblaze B2
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      B2_BUCKET: ${{ secrets.B2_BACKUP_BUCKET }}
+      B2_ENDPOINT: ${{ secrets.B2_BACKUP_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.B2_BACKUP_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_BACKUP_APPLICATION_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.B2_BACKUP_REGION }}
+      AWS_EC2_METADATA_DISABLED: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for var in SUPABASE_DB_URL B2_BUCKET B2_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::$var is not configured"
+              exit 1
+            fi
+          done
+
+      - name: Create database dump
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TS="$(TZ=Europe/Kyiv date +'%Y-%m-%d_%H-%M-%S')"
+          YEAR="$(TZ=Europe/Kyiv date +'%Y')"
+          MONTH="$(TZ=Europe/Kyiv date +'%m')"
+          DAY="$(TZ=Europe/Kyiv date +'%d')"
+          WEEK="$(TZ=Europe/Kyiv date +'%G-W%V')"
+          WEEKDAY="$(TZ=Europe/Kyiv date +'%u')"
+
+          DIR="PRIZ_Control_Backup_${TS}"
+          ARCHIVE="${DIR}.tar.gz"
+
+          mkdir -p "$DIR"
+
+          echo "Backing up roles..."
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$DIR/roles.sql" --role-only
+
+          echo "Backing up schema..."
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$DIR/schema.sql"
+
+          echo "Backing up data..."
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$DIR/data.sql" --data-only --use-copy
+
+          cat > "$DIR/backup-info.txt" <<EOF
+          project=PRIZ Control
+          created_at_kyiv=$(TZ=Europe/Kyiv date --iso-8601=seconds)
+          github_repository=${GITHUB_REPOSITORY}
+          github_run_id=${GITHUB_RUN_ID}
+          supabase_cli_version=$(supabase --version)
+          EOF
+
+          (
+            cd "$DIR"
+            sha256sum roles.sql schema.sql data.sql backup-info.txt > SHA256SUMS
+          )
+
+          tar -czf "$ARCHIVE" "$DIR"
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
+
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          echo "YEAR=$YEAR" >> "$GITHUB_ENV"
+          echo "MONTH=$MONTH" >> "$GITHUB_ENV"
+          echo "DAY=$DAY" >> "$GITHUB_ENV"
+          echo "WEEK=$WEEK" >> "$GITHUB_ENV"
+          echo "WEEKDAY=$WEEKDAY" >> "$GITHUB_ENV"
+
+      - name: Upload daily backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX="daily/${YEAR}/${MONTH}"
+
+          aws s3 cp "$ARCHIVE" \
+            "s3://${B2_BUCKET}/${PREFIX}/${ARCHIVE}" \
+            --endpoint-url "$B2_ENDPOINT"
+
+          aws s3 cp "${ARCHIVE}.sha256" \
+            "s3://${B2_BUCKET}/${PREFIX}/${ARCHIVE}.sha256" \
+            --endpoint-url "$B2_ENDPOINT"
+
+      - name: Upload weekly backup
+        if: env.WEEKDAY == '7'
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX="weekly/${YEAR}/${WEEK}"
+
+          aws s3 cp "$ARCHIVE" \
+            "s3://${B2_BUCKET}/${PREFIX}/${ARCHIVE}" \
+            --endpoint-url "$B2_ENDPOINT"
+
+          aws s3 cp "${ARCHIVE}.sha256" \
+            "s3://${B2_BUCKET}/${PREFIX}/${ARCHIVE}.sha256" \
+            --endpoint-url "$B2_ENDPOINT"
+
+      - name: Upload monthly backup
+        if: env.DAY == '01'
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX="monthly/${YEAR}/${MONTH}"
+
+          aws s3 cp "$ARCHIVE" \
+            "s3://${B2_BUCKET}/${PREFIX}/${ARCHIVE}" \
+            --endpoint-url "$B2_ENDPOINT"
+
+          aws s3 cp "${ARCHIVE}.sha256" \
+            "s3://${B2_BUCKET}/${PREFIX}/${ARCHIVE}.sha256" \
+            --endpoint-url "$B2_ENDPOINT"
+
+      - name: Upload yearly backup
+        if: env.DAY == '01' && env.MONTH == '01'
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX="yearly/${YEAR}"
+
+          aws s3 cp "$ARCHIVE" \
+            "s3://${B2_BUCKET}/${PREFIX}/${ARCHIVE}" \
+            --endpoint-url "$B2_ENDPOINT"
+
+          aws s3 cp "${ARCHIVE}.sha256" \
+            "s3://${B2_BUCKET}/${PREFIX}/${ARCHIVE}.sha256" \
+            --endpoint-url "$B2_ENDPOINT"
+
+      - name: Verify uploaded daily backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX="daily/${YEAR}/${MONTH}"
+
+          aws s3api head-object \
+            --bucket "$B2_BUCKET" \
+            --key "${PREFIX}/${ARCHIVE}" \
+            --endpoint-url "$B2_ENDPOINT" \
+            >/dev/null
+
+          echo "Backup upload verified: ${PREFIX}/${ARCHIVE}"
