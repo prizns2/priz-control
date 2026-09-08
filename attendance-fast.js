@@ -1,6 +1,13 @@
 (() => {
   const FAST_VALID = new Set(['1', '1В', '1Л', 'В', 'Л']);
   const FAST_SHIFT = new Set(['1', '1В', '1Л']);
+  const FAST_STATUS_CSS = {
+    '1': 'att-work',
+    '1В': 'att-paid-vac',
+    '1Л': 'att-paid-sick',
+    'В': 'att-vac',
+    'Л': 'att-sick'
+  };
   let xlsxPromise = null;
   let fastEnhanceTimer = null;
 
@@ -75,6 +82,15 @@
       .attendance-fast-hint b{color:#c7cbd3}
       .att-excel-btn{
         white-space:nowrap;
+      }
+      .att-clear-btn{
+        white-space:nowrap;
+        border-color:#5c2930!important;
+        color:#ffb8bf!important;
+      }
+      .att-clear-btn:hover{
+        background:#32161a!important;
+        border-color:#8a3943!important;
       }
       .attendance-table tfoot th,
       .attendance-table tfoot td{
@@ -261,13 +277,32 @@
     });
   }
 
-  async function saveQuickStatus(cell, input) {
+  function paintFastCell(cell, status, hadComment) {
+    Object.values(FAST_STATUS_CSS).forEach(cls => cell.classList.remove(cls));
+    if (status && FAST_STATUS_CSS[status]) cell.classList.add(FAST_STATUS_CSS[status]);
+
+    cell.classList.remove('fast-saving');
+    cell.innerHTML = '';
+    cell.appendChild(document.createTextNode(status || '·'));
+
+    if (status && hadComment) {
+      const dot = document.createElement('i');
+      dot.className = 'comment-dot';
+      cell.appendChild(dot);
+    }
+
+    cell.dataset.fastOriginalStatus = status || '';
+    cell.dataset.fastHadComment = status && hadComment ? '1' : '0';
+  }
+
+  async function saveQuickStatus(cell, input, moveNext = false) {
     if (input.dataset.saving === '1') return;
 
     const regionId = currentAttendanceRegionId();
     const userId = cell.dataset.attUser;
     const date = cell.dataset.attDate;
     const oldStatus = cell.dataset.fastOriginalStatus || '';
+    const hadComment = cell.dataset.fastHadComment === '1';
     const newStatus = normalizeFastStatus(input.value);
 
     if (!regionId || !userId || !date) {
@@ -282,11 +317,11 @@
       return;
     }
 
-    const target = nextEditableTarget(cell);
+    const target = moveNext ? nextEditableTarget(cell) : null;
 
     if (newStatus === oldStatus) {
-      input.replaceWith(document.createTextNode(oldStatus || '·'));
-      focusTargetAfterRender(target);
+      paintFastCell(cell, oldStatus, hadComment);
+      if (moveNext) focusTargetAfterRender(target);
       return;
     }
 
@@ -303,8 +338,17 @@
 
       if (error) throw error;
 
-      await renderPage();
-      focusTargetAfterRender(target);
+      // Не перерисовываем всю таблицу после каждого символа.
+      // Это убирает прыжки фокуса и мигание при быстром заполнении.
+      paintFastCell(cell, newStatus, newStatus ? hadComment : false);
+
+      const table = cell.closest('.attendance-table');
+      if (table) {
+        updateShiftTotals(table);
+        updateOnShiftFooter(table);
+      }
+
+      if (moveNext) focusTargetAfterRender(target);
     } catch (err) {
       console.error(err);
       cell.classList.remove('fast-saving');
@@ -317,7 +361,8 @@
 
   function cancelInlineEdit(cell, input) {
     const oldStatus = cell.dataset.fastOriginalStatus || '';
-    input.replaceWith(document.createTextNode(oldStatus || '·'));
+    const hadComment = cell.dataset.fastHadComment === '1';
+    paintFastCell(cell, oldStatus, hadComment);
   }
 
   function startInlineEdit(cell) {
@@ -329,6 +374,7 @@
 
     const oldStatus = cellStatus(cell);
     cell.dataset.fastOriginalStatus = oldStatus;
+    cell.dataset.fastHadComment = cell.querySelector('.comment-dot') ? '1' : '0';
 
     const input = document.createElement('input');
     input.className = 'att-quick-input';
@@ -351,7 +397,7 @@
     input.addEventListener('keydown', async event => {
       if (event.key === 'Enter') {
         event.preventDefault();
-        await saveQuickStatus(cell, input);
+        await saveQuickStatus(cell, input, true);
         return;
       }
 
@@ -361,8 +407,7 @@
       }
     });
 
-    // Если старший ввёл значение и сразу кликнул в другую ячейку —
-    // автоматически сохраняем, чтобы не оставались "фиолетовые" незаписанные поля.
+    // Клик в другую ячейку сохраняет текущую, но НЕ перехватывает фокус обратно.
     input.addEventListener('blur', () => {
       setTimeout(async () => {
         if (!document.body.contains(input)) return;
@@ -376,7 +421,7 @@
           return;
         }
 
-        await saveQuickStatus(cell, input);
+        await saveQuickStatus(cell, input, false);
       }, 0);
     });
   }
@@ -569,6 +614,70 @@
     }
   }
 
+  async function clearAttendanceMonth(button) {
+    const table = document.querySelector('.attendance-table');
+    const firstCell = table?.querySelector('.att-cell.editable[data-att-date]');
+    const regionId = currentAttendanceRegionId();
+
+    if (!table || !firstCell || !regionId) {
+      toast('Не удалось определить табель для очистки', true);
+      return;
+    }
+
+    const monthStart = `${firstCell.dataset.attDate.slice(0, 7)}-01`;
+    const title = document.querySelector('.attendance-top h3')?.textContent?.trim() || 'этот табель';
+
+    if (!confirm(`Очистить ${title}?\n\nБудут удалены ВСЕ отметки этого региона за выбранный месяц. История изменений сохранится.`)) {
+      return;
+    }
+
+    const oldText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Очищаем…';
+
+    try {
+      const { data, error } = await sb.rpc('attendance_clear_month', {
+        p_region_id: regionId,
+        p_month_start: monthStart
+      });
+
+      if (error) throw error;
+
+      toast(`Табель очищен. Удалено отметок: ${Number(data?.deleted || 0)}`);
+      await renderPage();
+    } catch (err) {
+      console.error(err);
+      toast(err.message || 'Не удалось очистить табель', true);
+    } finally {
+      button.disabled = false;
+      button.textContent = oldText;
+    }
+  }
+
+  function addClearButton() {
+    const top = document.querySelector('.attendance-top');
+    const table = document.querySelector('.attendance-table');
+    if (!top || !table?.querySelector('.att-cell.editable')) return;
+
+    let controls = top.querySelector('.attendance-controls');
+    if (!controls) {
+      controls = document.createElement('div');
+      controls.className = 'attendance-controls';
+      top.appendChild(controls);
+    }
+
+    if (controls.querySelector('.att-clear-btn')) return;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn ghost att-clear-btn';
+    button.textContent = 'Очистить';
+    button.title = 'Очистить все отметки выбранного региона за этот месяц';
+    button.onclick = () => clearAttendanceMonth(button);
+
+    controls.appendChild(button);
+  }
+
   function addExcelButton() {
     const top = document.querySelector('.attendance-top');
     if (!top) return;
@@ -606,6 +715,7 @@
     add2x2Buttons(table);
     addFastHint();
     addExcelButton();
+    addClearButton();
   }
 
   function scheduleEnhanceAttendance() {
