@@ -245,19 +245,37 @@
     managerNotifTimer = null;
   }
 
+  function cleanupManagerNotificationUi() {
+    stopManagerNotificationPolling();
+    managerNotifLoading = false;
+    managerNotifData = { unreadCount: 0, items: [] };
+
+    document.getElementById('managerNotifWrap')?.remove();
+    document.getElementById('managerNotifPanel')?.remove();
+  }
+
   buildShell = function(...args) {
     const result = originalBuildShellManagerNotifications.apply(this, args);
-    if (currentUser?.role === 'manager') startManagerNotificationPolling();
-    else stopManagerNotificationPolling();
+
+    if (currentUser?.role === 'manager') {
+      startManagerNotificationPolling();
+    } else {
+      cleanupManagerNotificationUi();
+    }
+
     return result;
   };
 
   renderPage = async function(...args) {
     const result = await originalRenderPageManagerNotifications.apply(this, args);
+
     if (currentUser?.role === 'manager') {
       ensureManagerNotificationUi();
       renderManagerNotifications();
+    } else {
+      cleanupManagerNotificationUi();
     }
+
     return result;
   };
 
