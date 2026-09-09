@@ -13,16 +13,24 @@
       opacity: .72;
     }
 
-    /* Белая иконка календаря на тёмном фоне */
-    #content input[type="date"] {
-      color-scheme: dark;
-    }
+   /* Белая иконка календаря */
+#content input[type="date"] {
+  color-scheme: dark;
+  padding-right: 42px !important;
 
-    #content input[type="date"]::-webkit-calendar-picker-indicator {
-      filter: invert(1);
-      opacity: 1;
-      cursor: pointer;
-    }
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M16 3v4M8 3v4M3 11h18'/%3E%3C/svg%3E") !important;
+
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 18px 18px !important;
+}
+
+#content input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0 !important;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+}
   `;
   document.head.appendChild(style);
 
