@@ -33,7 +33,18 @@
 }
   `;
   document.head.appendChild(style);
+// Открываем календарь по клику в любое место поля даты
+document.addEventListener('click', (e) => {
+  const input = e.target.closest('#content input[type="date"]');
 
+  if (!input) return;
+
+  try {
+    input.showPicker();
+  } catch (_) {
+    input.focus();
+  }
+});
   let toolbarObserver = null;
   let operatorLoadSeq = 0;
 
