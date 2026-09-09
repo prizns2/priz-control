@@ -1,69 +1,56 @@
 (() => {
   const originalRenderRecordsOperatorFilter = renderRecords;
-  let recordsOperatorObserver = null;
+  const originalRecordsTableOperatorFilter = recordsTable;
 
-  function enhanceRecordsTableHeaders() {
-    const area = document.getElementById('recordsArea');
-    if (!area) return;
+  // Без MutationObserver: он и был причиной зависания страницы.
+  recordsTable = function(list, actions = true) {
+    if (currentUser?.role === 'manager') {
+      return originalRecordsTableOperatorFilter(list, actions);
+    }
 
-    area.querySelectorAll('table').forEach(table => {
-      // Для кабинета менеджера оставляем его отдельную таблицу как есть.
-      if (currentUser?.role === 'manager') return;
+    if (!list.length) {
+      return '<div class="empty"><b>Записей пока нет</b>Добавь первую запись, и она появится здесь.</div>';
+    }
 
-      const headRow = table.querySelector('thead tr');
-      if (!headRow) return;
-
-      let operatorTh = [...headRow.querySelectorAll('th')]
-        .find(th => ['Автор', 'Оператор'].includes(th.textContent.trim()));
-
-      if (!operatorTh) return;
-      operatorTh.textContent = 'Оператор';
-
-      let managerTh = headRow.querySelector('.records-manager-col');
-      if (!managerTh) {
-        managerTh = document.createElement('th');
-        managerTh.className = 'records-manager-col';
-        managerTh.textContent = 'Менеджер';
-        headRow.insertBefore(managerTh, operatorTh);
-      }
-
-      const operatorIndex = [...headRow.children].indexOf(operatorTh);
-      const managerIndex = [...headRow.children].indexOf(managerTh);
-
-      table.querySelectorAll('tbody tr[data-id]').forEach(row => {
-        if (row.querySelector('.records-manager-col')) return;
-
-        const recordId = row.dataset.id;
-        const record = recordCache.find(r => String(r.id) === String(recordId));
-        const td = document.createElement('td');
-        td.className = 'records-manager-col';
-        td.textContent = record?.manager || '—';
-
-        const cells = [...row.children];
-
-        // После вставки заголовка индекс "Оператор" сдвинут вправо.
-        // Ставим менеджера прямо перед оператором.
-        const beforeCell = cells[managerIndex] || cells[operatorIndex] || null;
-        if (beforeCell) row.insertBefore(td, beforeCell);
-        else row.appendChild(td);
-      });
-    });
-  }
-
-  function observeRecordsArea() {
-    recordsOperatorObserver?.disconnect();
-    recordsOperatorObserver = null;
-
-    const area = document.getElementById('recordsArea');
-    if (!area) return;
-
-    recordsOperatorObserver = new MutationObserver(() => {
-      enhanceRecordsTableHeaders();
-    });
-
-    recordsOperatorObserver.observe(area, { childList: true, subtree: true });
-    enhanceRecordsTableHeaders();
-  }
+    return `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Тип</th>
+              <th>Дата</th>
+              <th>Магазин</th>
+              <th>Сотрудник</th>
+              <th>Содержание</th>
+              <th>Менеджер</th>
+              <th>Оператор</th>
+              ${actions ? '<th></th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map(r => `
+              <tr class="clickable" data-id="${esc(r.id)}">
+                <td>${typeBadge(r.kind)}</td>
+                <td>${fmtDate(r.date)}</td>
+                <td>${esc(r.store || '—')}</td>
+                <td>${esc(recordSubject(r))}</td>
+                <td>
+                  <b>${esc(recordTitle(r))}</b>
+                  <div class="muted small">
+                    ${esc((r.story || r.comment || '').slice(0, 90))}
+                    ${(r.story || r.comment || '').length > 90 ? '…' : ''}
+                  </div>
+                </td>
+                <td>${esc(r.manager || '—')}</td>
+                <td>${esc(r.createdByName || '—')}</td>
+                ${actions ? `<td>${canEdit() ? `<button class="btn ghost small-btn edit-row" data-id="${esc(r.id)}">Редактировать</button>` : ''}</td>` : ''}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
 
   async function getOperatorOptionsForSelectedRegion() {
     const regionCode = document.getElementById('regionSelect')?.value || 'all';
@@ -108,10 +95,7 @@
     const personInput = document.getElementById('fPerson');
     const clearBtn = document.getElementById('clearFilters');
 
-    if (!search || !personInput) {
-      observeRecordsArea();
-      return;
-    }
+    if (!search || !personInput) return;
 
     search.placeholder = 'Поиск: магазин, фабула, сотрудник / продавец...';
     search.title = 'Поиск по магазину, фабуле, сотруднику / продавцу, менеджеру и оператору';
@@ -131,8 +115,6 @@
         ${operators.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}
       `;
 
-      // Старое поле fPerson оставляем скрытым:
-      // сервер теперь использует его как фильтр по оператору.
       personInput.style.display = 'none';
       personInput.setAttribute('aria-hidden', 'true');
       personInput.insertAdjacentElement('afterend', select);
@@ -150,8 +132,6 @@
         });
       }
     }
-
-    observeRecordsArea();
   }
 
   renderRecords = async function (...args) {
