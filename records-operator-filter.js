@@ -2,14 +2,51 @@
   const originalRenderRecordsOperatorFilter = renderRecords;
   let recordsOperatorObserver = null;
 
-  function renameAuthorHeader() {
+  function enhanceRecordsTableHeaders() {
     const area = document.getElementById('recordsArea');
     if (!area) return;
 
-    area.querySelectorAll('thead th').forEach(th => {
-      if (th.textContent.trim() === 'Автор') {
-        th.textContent = 'Оператор';
+    area.querySelectorAll('table').forEach(table => {
+      // Для кабинета менеджера оставляем его отдельную таблицу как есть.
+      if (currentUser?.role === 'manager') return;
+
+      const headRow = table.querySelector('thead tr');
+      if (!headRow) return;
+
+      let operatorTh = [...headRow.querySelectorAll('th')]
+        .find(th => ['Автор', 'Оператор'].includes(th.textContent.trim()));
+
+      if (!operatorTh) return;
+      operatorTh.textContent = 'Оператор';
+
+      let managerTh = headRow.querySelector('.records-manager-col');
+      if (!managerTh) {
+        managerTh = document.createElement('th');
+        managerTh.className = 'records-manager-col';
+        managerTh.textContent = 'Менеджер';
+        headRow.insertBefore(managerTh, operatorTh);
       }
+
+      const operatorIndex = [...headRow.children].indexOf(operatorTh);
+      const managerIndex = [...headRow.children].indexOf(managerTh);
+
+      table.querySelectorAll('tbody tr[data-id]').forEach(row => {
+        if (row.querySelector('.records-manager-col')) return;
+
+        const recordId = row.dataset.id;
+        const record = recordCache.find(r => String(r.id) === String(recordId));
+        const td = document.createElement('td');
+        td.className = 'records-manager-col';
+        td.textContent = record?.manager || '—';
+
+        const cells = [...row.children];
+
+        // После вставки заголовка индекс "Оператор" сдвинут вправо.
+        // Ставим менеджера прямо перед оператором.
+        const beforeCell = cells[managerIndex] || cells[operatorIndex] || null;
+        if (beforeCell) row.insertBefore(td, beforeCell);
+        else row.appendChild(td);
+      });
     });
   }
 
@@ -20,9 +57,12 @@
     const area = document.getElementById('recordsArea');
     if (!area) return;
 
-    recordsOperatorObserver = new MutationObserver(() => renameAuthorHeader());
+    recordsOperatorObserver = new MutationObserver(() => {
+      enhanceRecordsTableHeaders();
+    });
+
     recordsOperatorObserver.observe(area, { childList: true, subtree: true });
-    renameAuthorHeader();
+    enhanceRecordsTableHeaders();
   }
 
   async function getOperatorOptionsForSelectedRegion() {
@@ -91,8 +131,8 @@
         ${operators.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}
       `;
 
-      // Оставляем старый fPerson в DOM, потому что штатный renderRecords
-      // уже привязал к нему фильтрацию. Теперь это скрытое поле оператора.
+      // Старое поле fPerson оставляем скрытым:
+      // сервер теперь использует его как фильтр по оператору.
       personInput.style.display = 'none';
       personInput.setAttribute('aria-hidden', 'true');
       personInput.insertAdjacentElement('afterend', select);
