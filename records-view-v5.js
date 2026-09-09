@@ -5,8 +5,24 @@
   const style = document.createElement('style');
   style.id = 'recordsViewV5Styles';
   style.textContent = `
-    #fPerson{display:none!important}
-    #fOperator.records-operator-loading{opacity:.72}
+    #fPerson {
+      display: none !important;
+    }
+
+    #fOperator.records-operator-loading {
+      opacity: .72;
+    }
+
+    /* Белая иконка календаря на тёмном фоне */
+    #content input[type="date"] {
+      color-scheme: dark;
+    }
+
+    #content input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+      opacity: 1;
+      cursor: pointer;
+    }
   `;
   document.head.appendChild(style);
 
@@ -30,30 +46,67 @@
               <th>Тип</th>
               <th>Дата</th>
               <th>Магазин</th>
-              <th>Сотрудник</th>
+              <th>Продавец</th>
               <th>Содержание</th>
               <th>Менеджер</th>
               <th>Оператор</th>
               ${actions ? '<th></th>' : ''}
             </tr>
           </thead>
+
           <tbody>
             ${list.map(r => `
               <tr class="clickable" data-id="${esc(r.id)}">
+
                 <td>${typeBadge(r.kind)}</td>
+
                 <td>${fmtDate(r.date)}</td>
+
                 <td>${esc(r.store || '—')}</td>
+
                 <td>${esc(recordSubject(r))}</td>
+
                 <td>
                   <b>${esc(recordTitle(r))}</b>
+
                   <div class="muted small">
-                    ${esc((r.story || r.comment || '').slice(0, 90))}
-                    ${(r.story || r.comment || '').length > 90 ? '…' : ''}
+                    ${esc(
+                      (r.story || r.comment || '').slice(0, 90)
+                    )}
+
+                    ${
+                      (r.story || r.comment || '').length > 90
+                        ? '…'
+                        : ''
+                    }
                   </div>
                 </td>
+
                 <td>${esc(r.manager || '—')}</td>
+
                 <td>${esc(r.createdByName || '—')}</td>
-                ${actions ? `<td>${canEdit() ? `<button class="btn ghost small-btn edit-row" data-id="${esc(r.id)}">Редактировать</button>` : ''}</td>` : ''}
+
+                ${
+                  actions
+                    ? `
+                      <td>
+                        ${
+                          canEdit()
+                            ? `
+                              <button
+                                class="btn ghost small-btn edit-row"
+                                data-id="${esc(r.id)}"
+                              >
+                                Редактировать
+                              </button>
+                            `
+                            : ''
+                        }
+                      </td>
+                    `
+                    : ''
+                }
+
               </tr>
             `).join('')}
           </tbody>
@@ -63,75 +116,177 @@
   };
 
   function selectedRegionIdForOperatorFilter() {
-    const code = document.getElementById('regionSelect')?.value || 'all';
-    return code === 'all' ? null : (REGIONS?.[code]?.id || null);
+    const code =
+      document.getElementById('regionSelect')?.value || 'all';
+
+    return code === 'all'
+      ? null
+      : (REGIONS?.[code]?.id || null);
   }
 
   async function fillOperators(select) {
     const seq = ++operatorLoadSeq;
-    const regionId = selectedRegionIdForOperatorFilter();
 
-    select.classList.add('records-operator-loading');
+    const regionId =
+      selectedRegionIdForOperatorFilter();
+
+    select.classList.add(
+      'records-operator-loading'
+    );
 
     try {
-      const { data, error } = await sb.rpc('record_filter_operators', {
-        p_region_id: regionId
-      });
+      const { data, error } = await sb.rpc(
+        'record_filter_operators',
+        {
+          p_region_id: regionId
+        }
+      );
 
-      if (error) throw error;
-      if (seq !== operatorLoadSeq || !document.body.contains(select)) return;
+      if (error) {
+        throw error;
+      }
+
+      if (
+        seq !== operatorLoadSeq ||
+        !document.body.contains(select)
+      ) {
+        return;
+      }
 
       const current = select.value;
-      const names = Array.isArray(data) ? data : [];
+
+      const names =
+        Array.isArray(data)
+          ? data
+          : [];
 
       select.innerHTML = `
-        <option value="">Все операторы</option>
-        ${names.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}
+        <option value="">
+          Все операторы
+        </option>
+
+        ${names
+          .map(
+            name => `
+              <option value="${esc(name)}">
+                ${esc(name)}
+              </option>
+            `
+          )
+          .join('')}
       `;
 
-      if (current && names.includes(current)) select.value = current;
+      if (
+        current &&
+        names.includes(current)
+      ) {
+        select.value = current;
+      }
+
     } catch (err) {
-      console.error('Не удалось загрузить операторов', err);
+      console.error(
+        'Не удалось загрузить операторов',
+        err
+      );
+
     } finally {
-      if (seq === operatorLoadSeq && document.body.contains(select)) {
-        select.classList.remove('records-operator-loading');
+      if (
+        seq === operatorLoadSeq &&
+        document.body.contains(select)
+      ) {
+        select.classList.remove(
+          'records-operator-loading'
+        );
       }
     }
   }
 
   function installOperatorSelectImmediately() {
-    if (currentPage !== 'records' || currentUser?.role === 'manager') return false;
-
-    const hiddenFilter = document.getElementById('fPerson');
-    if (!hiddenFilter) return false;
-
-    const search = document.getElementById('q');
-    if (search) {
-      search.placeholder = 'Поиск: магазин, фабула, сотрудник / продавец...';
-      search.title = 'Поиск по магазину, фабуле, сотруднику / продавцу, менеджеру и оператору';
+    if (
+      currentPage !== 'records' ||
+      currentUser?.role === 'manager'
+    ) {
+      return false;
     }
 
-    hiddenFilter.setAttribute('aria-hidden', 'true');
+    const hiddenFilter =
+      document.getElementById('fPerson');
 
-    let select = document.getElementById('fOperator');
+    if (!hiddenFilter) {
+      return false;
+    }
+
+    const search =
+      document.getElementById('q');
+
+    if (search) {
+      search.placeholder =
+        'Поиск: магазин, фабула, продавец...';
+
+      search.title =
+        'Поиск по магазину, фабуле, продавцу, менеджеру и оператору';
+    }
+
+    hiddenFilter.setAttribute(
+      'aria-hidden',
+      'true'
+    );
+
+    let select =
+      document.getElementById('fOperator');
+
     if (!select) {
-      select = document.createElement('select');
+
+      select =
+        document.createElement('select');
+
       select.id = 'fOperator';
-      select.className = 'records-operator-loading';
-      select.innerHTML = '<option value="">Все операторы</option>';
-      hiddenFilter.insertAdjacentElement('afterend', select);
+
+      select.className =
+        'records-operator-loading';
+
+      select.innerHTML =
+        '<option value="">Все операторы</option>';
+
+      hiddenFilter.insertAdjacentElement(
+        'afterend',
+        select
+      );
 
       select.onchange = () => {
-        hiddenFilter.value = select.value;
-        hiddenFilter.dispatchEvent(new Event('input', { bubbles: true }));
-        hiddenFilter.dispatchEvent(new Event('change', { bubbles: true }));
+
+        hiddenFilter.value =
+          select.value;
+
+        hiddenFilter.dispatchEvent(
+          new Event(
+            'input',
+            { bubbles: true }
+          )
+        );
+
+        hiddenFilter.dispatchEvent(
+          new Event(
+            'change',
+            { bubbles: true }
+          )
+        );
       };
 
-      const clearBtn = document.getElementById('clearFilters');
-      clearBtn?.addEventListener('click', () => {
-        select.value = '';
-        hiddenFilter.value = '';
-      });
+      const clearBtn =
+        document.getElementById(
+          'clearFilters'
+        );
+
+      clearBtn?.addEventListener(
+        'click',
+        () => {
+
+          select.value = '';
+
+          hiddenFilter.value = '';
+        }
+      );
 
       fillOperators(select);
     }
@@ -140,28 +295,61 @@
   }
 
   function watchToolbarOnlyUntilReady() {
+
     toolbarObserver?.disconnect();
+
     toolbarObserver = null;
 
-    if (installOperatorSelectImmediately()) return;
+    if (
+      installOperatorSelectImmediately()
+    ) {
+      return;
+    }
 
-    const content = document.getElementById('content');
-    if (!content) return;
+    const content =
+      document.getElementById(
+        'content'
+      );
 
-    toolbarObserver = new MutationObserver(() => {
-      if (installOperatorSelectImmediately()) {
-        toolbarObserver?.disconnect();
-        toolbarObserver = null;
+    if (!content) {
+      return;
+    }
+
+    toolbarObserver =
+      new MutationObserver(() => {
+
+        if (
+          installOperatorSelectImmediately()
+        ) {
+
+          toolbarObserver?.disconnect();
+
+          toolbarObserver = null;
+        }
+      });
+
+    toolbarObserver.observe(
+      content,
+      {
+        childList: true,
+        subtree: true
       }
-    });
-
-    toolbarObserver.observe(content, { childList: true, subtree: true });
+    );
   }
 
   renderRecords = async function(...args) {
+
     watchToolbarOnlyUntilReady();
-    const result = await baseRenderRecords.apply(this, args);
+
+    const result =
+      await baseRenderRecords.apply(
+        this,
+        args
+      );
+
     installOperatorSelectImmediately();
+
     return result;
   };
+
 })();
