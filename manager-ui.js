@@ -46,23 +46,26 @@
     try {
       const { data, error } = await sb
         .from('media')
-        .select('record_id,mime_type')
+        .select('record_id,mime_type,uploaded_by')
         .in('record_id', ids);
 
       if (error) throw error;
 
       const withPhoto = new Set(
         (data || [])
-          .filter(x => String(x.mime_type || '').toLowerCase().startsWith('image/'))
+          .filter(x =>
+            x.uploaded_by === currentUser.id &&
+            String(x.mime_type || '').toLowerCase().startsWith('image/')
+          )
           .map(x => x.record_id)
       );
 
       buttons.forEach(button => {
         if (withPhoto.has(button.dataset.id)) {
-          button.textContent = '✓ Фото добавлено';
+          button.textContent = '✓ Чек об оплате добавлен';
           button.classList.add('has-photo');
         } else {
-          button.textContent = '📎 Добавить фото';
+          button.textContent = '📎 Добавить чек';
           button.classList.remove('has-photo');
         }
       });
@@ -118,7 +121,7 @@
                 <td>${esc(r.createdByName)}</td>
                 <td class="manager-photo-action-cell">
                   ${managerCanAttachPhoto(r)
-                    ? `<button class="btn ghost small-btn manager-photo-row" type="button" data-id="${esc(r.id)}">📎 Добавить фото</button>`
+                    ? `<button class="btn ghost small-btn manager-photo-row" type="button" data-id="${esc(r.id)}">📎 Добавить чек</button>`
                     : '<span class="muted small">—</span>'}
                 </td>
               </tr>
@@ -154,13 +157,13 @@
           await uploadOneMedia(
             recordId,
             { name:file.name, type:file.type, size:file.size, blob:file },
-            progress => { button.textContent = `Фото ${i+1}/${files.length} · ${progress}%`; }
+            progress => { button.textContent = `Чек ${i+1}/${files.length} · ${progress}%`; }
           );
         }
 
-        button.textContent = '✓ Фото добавлено';
+        button.textContent = '✓ Чек об оплате добавлен';
         button.classList.add('has-photo');
-        toast(files.length === 1 ? 'Фото прикреплено' : `Прикреплено фото: ${files.length}`);
+        toast(files.length === 1 ? 'Чек об оплате прикреплён' : `Прикреплено чеков: ${files.length}`);
       } catch (err) {
         console.error(err);
         toast(err.message || 'Не удалось прикрепить фото', true);
@@ -239,7 +242,7 @@
     }
 
     const hasPhoto = (record?.attachments || []).some(a => String(a.type || '').toLowerCase().startsWith('image/'));
-    if (hasPhoto) button.textContent = '✓ Фото добавлено';
+    if (hasPhoto) button.textContent = '✓ Чек об оплате добавлен';
   };
 
   renderRecords = async function(...args) {

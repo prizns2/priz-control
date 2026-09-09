@@ -62,9 +62,45 @@
 
   function notificationPhotoStatus(item) {
     if (item.kind !== 'cat1' || Number(item.damageStore || 0) <= 0) return '';
-    return item.hasPhoto
-      ? '<div class="manager-notif-photo ok">✓ Фото добавлено</div>'
-      : '<div class="manager-notif-photo need">📷 Нужно прикрепить фото</div>';
+    return item.hasManagerReceipt
+      ? '<div class="manager-notif-photo ok">✓ Чек об оплате добавлен</div>'
+      : '<div class="manager-notif-photo need">📷 Нужно прикрепить чек об оплате</div>';
+  }
+
+  async function enrichManagerReceiptStatus(items) {
+    const ids = [...new Set(
+      (items || [])
+        .filter(item => item.kind === 'cat1' && Number(item.damageStore || 0) > 0)
+        .map(item => item.recordId)
+        .filter(Boolean)
+    )];
+
+    if (!ids.length) return;
+
+    try {
+      const { data, error } = await sb
+        .from('media')
+        .select('record_id,mime_type,uploaded_by')
+        .in('record_id', ids)
+        .eq('uploaded_by', currentUser.id);
+
+      if (error) throw error;
+
+      const receiptRecords = new Set(
+        (data || [])
+          .filter(x => String(x.mime_type || '').toLowerCase().startsWith('image/'))
+          .map(x => x.record_id)
+      );
+
+      (items || []).forEach(item => {
+        item.hasManagerReceipt = receiptRecords.has(item.recordId);
+      });
+    } catch (err) {
+      console.warn('Не удалось проверить чеки менеджера', err);
+      (items || []).forEach(item => {
+        item.hasManagerReceipt = false;
+      });
+    }
   }
 
   function ensureManagerNotificationUi() {
@@ -186,6 +222,7 @@
       const { data, error } = await sb.rpc('manager_notifications_payload', { p_limit: 50 });
       if (error) throw error;
       managerNotifData = data || { unreadCount: 0, items: [] };
+      await enrichManagerReceiptStatus(managerNotifData.items || []);
       renderManagerNotifications();
     } catch (err) {
       console.error('Manager notifications:', err);
