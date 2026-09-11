@@ -2,14 +2,64 @@
   const SEARCH_PLACEHOLDER = 'Поиск: магазин, продавец...';
   const SEARCH_TITLE = 'Поиск по магазину, продавцу, менеджеру и оператору';
 
+  const REMOVE_EXACT = new Set([
+    'Режим руководителя: просмотр записей, медиа и истории без возможности редактирования.',
+    'Категория 1 + Категория 2',
+    'Показываются только реальные изменения и удаления записей.',
+    'Нарушение, фабула, ущерб, возмещение, фото и видео.',
+    'Операционные нарушения с отдельным справочником типов.',
+    '5 критериев: только 0 или 2 балла.',
+    'Можно заполнять и исправлять отметки.',
+    'Режим просмотра. Изменение табеля недоступно.',
+    'Здесь видны ваши заявки и их текущий статус.',
+    'Согласуйте или отклоните заявки старших операторов.',
+    'Удаление доступно только после согласования руководителем.',
+    'После согласования заявка автоматически перейдёт Owner для окончательного удаления.',
+    'Цепочка: старший оператор → руководитель → Owner.'
+  ]);
+
+  const REMOVE_PREFIXES = [
+    'Быстрый ввод:'
+  ];
+
   const style = document.createElement('style');
   style.id = 'prizTerminologyStyles';
   style.textContent = `
     #content #q:not([data-priz-wording-ready="1"]) {
       visibility: hidden !important;
     }
+
+    /* Убираем подсказку быстрого ввода сразу, без мигания. */
+    .attendance-fast-hint {
+      display: none !important;
+    }
   `;
   document.head.appendChild(style);
+
+  function normalizeText(value) {
+    return String(value ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function shouldRemoveText(value) {
+    const text = normalizeText(value);
+    if (!text) return false;
+    if (REMOVE_EXACT.has(text)) return true;
+    return REMOVE_PREFIXES.some(prefix => text.startsWith(prefix));
+  }
+
+  function removeHelperElement(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+
+    const text = normalizeText(el.textContent);
+    if (!shouldRemoveText(text)) return false;
+
+    // Удаляем только саму вспомогательную строку/баннер,
+    // не затрагивая карточку, заголовок или соседние данные.
+    el.remove();
+    return true;
+  }
 
   function replaceUiText(value) {
     let s = String(value ?? '');
@@ -40,6 +90,12 @@
     const parent = node.parentElement;
     if (!parent || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) return;
 
+    // Если вся строка — ненужная подсказка, удаляем её контейнер целиком.
+    if (shouldRemoveText(parent.textContent)) {
+      parent.remove();
+      return;
+    }
+
     const raw = node.nodeValue || '';
     const trimmed = raw.trim();
 
@@ -68,6 +124,8 @@
   function processElement(el) {
     if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
 
+    if (removeHelperElement(el)) return;
+
     prepareSearch(el);
 
     for (const attr of ['placeholder', 'title', 'aria-label']) {
@@ -84,6 +142,15 @@
 
       if (next !== current) el.setAttribute(attr, next);
     }
+
+    // Сначала удаляем вложенные строки-подсказки.
+    const descendants = Array.from(el.querySelectorAll('*'));
+    for (const child of descendants) {
+      if (!document.body.contains(child)) continue;
+      if (removeHelperElement(child)) continue;
+    }
+
+    if (!document.body.contains(el)) return;
 
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     let node;
