@@ -20,80 +20,108 @@
       .priz-change-arrow{color:#686e7b;font-weight:800}
       .priz-change-after{color:#ff6f6f;font-weight:800}
       .priz-change-meta{margin-top:6px;color:#777e8c;font-size:10px}
+      .priz-audit-change{margin-top:8px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:rgba(255,255,255,.025)}
+      .priz-audit-change-label{font-weight:800;font-size:11px;margin-bottom:5px;color:#e9ebf2}
+      .priz-audit-change-values{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:11px;line-height:1.35}
+      .priz-audit-before{color:#8d93a1;text-decoration:line-through}
+      .priz-audit-arrow{color:#666d7a}
+      .priz-audit-after{color:#ff7272;font-weight:800}
       .priz-audit-clear{white-space:nowrap}
     `;
     document.head.appendChild(style);
   }
 
-  const SERVICE_KEYS = new Set(['updated_at', 'updated_by']);
-
-  function meaningfulChanges(changes) {
-    const out = {};
-    for (const [key, value] of Object.entries(changes || {})) {
-      if (!SERVICE_KEYS.has(key)) out[key] = value;
-    }
-    return out;
+  function actionTitle(action) {
+    return action === 'update' ? 'Изменение' : action === 'delete' ? 'Удаление' : action;
   }
 
-  function auditActionTitle(action) {
-    return action === 'update' ? 'Изменение' : action === 'delete' ? 'Удаление' : action;
+  function kindText(v) {
+    const s = String(v ?? '');
+    return s === 'cat1' ? 'Категория 1' : s === 'cat2' ? 'Категория 2' : (s === 'evaluation' || s === 'eval') ? 'Оценка' : s;
   }
 
   function valueText(key, value) {
     if (value === null || value === undefined || value === '') return '—';
     if (key === 'record_date') return fmtDate(String(value));
-    if (['damage_customer', 'damage_store', 'reimbursed_customer', 'reimbursed_store'].includes(key)) return money(value);
+    if (key === 'kind') return kindText(value);
+    if (['damage_customer','damage_store','reimbursed_customer','reimbursed_store'].includes(key)) return money(value);
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   }
 
-  function friendlyEventChanges(event) {
-    const ch = meaningfulChanges(event?.changes || {});
-    const result = [];
-    const push = (id, label, key, before, after) => result.push({
+  function pushItem(out, id, label, key, before, after, event) {
+    if (String(before ?? '') === String(after ?? '')) return;
+    out.push({
       id, label, key, before, after,
       actor: event?.actor_name || 'Система',
       createdAt: event?.created_at || null
     });
+  }
 
-    if (ch.record_date) push('record_date', 'Дата', 'record_date', ch.record_date.before, ch.record_date.after);
+  // Возвращает ТОЛЬКО понятные пользователю изменения.
+  // UUID и служебные поля сюда намеренно не попадают.
+  function friendlyEventChanges(event) {
+    const ch = event?.changes || {};
+    const out = [];
 
-    if (ch.store_name_snapshot) {
-      push('store', 'Магазин', 'store_name_snapshot', ch.store_name_snapshot.before, ch.store_name_snapshot.after);
-    } else if (ch.store_number_snapshot) {
-      push('store', 'Магазин', 'store_number_snapshot', ch.store_number_snapshot.before, ch.store_number_snapshot.after);
+    if (ch.record_date) pushItem(out, 'record_date', 'Дата', 'record_date', ch.record_date.before, ch.record_date.after, event);
+
+    // Магазин показываем одной строкой, без store_id и отдельного "Номер ТТ".
+    if (ch.store_name_snapshot || ch.store_number_snapshot) {
+      const n = ch.store_name_snapshot;
+      const num = ch.store_number_snapshot;
+      const before = n?.before ?? num?.before;
+      const after = n?.after ?? num?.after;
+      pushItem(out, 'store', 'Магазин', 'store_name_snapshot', before, after, event);
     }
 
-    if (ch.manager_name_snapshot) {
-      push('manager', 'Менеджер', 'manager_name_snapshot', ch.manager_name_snapshot.before, ch.manager_name_snapshot.after);
-    }
-
-    if (ch.violation_type_snapshot) {
-      push('violation', 'Тип нарушения', 'violation_type_snapshot', ch.violation_type_snapshot.before, ch.violation_type_snapshot.after);
-    }
-
-    if (ch.employee_name) push('employee', 'Сотрудник / продавец', 'employee_name', ch.employee_name.before, ch.employee_name.after);
-    if (ch.story) push('story', 'Фабула', 'story', ch.story.before, ch.story.after);
-    if (ch.damage_customer) push('damage_customer', 'Ущерб покупателю', 'damage_customer', ch.damage_customer.before, ch.damage_customer.after);
-    if (ch.damage_store) push('damage_store', 'Ущерб магазину', 'damage_store', ch.damage_store.before, ch.damage_store.after);
-    if (ch.reimbursed_customer) push('reimbursed_customer', 'Возмещено покупателю', 'reimbursed_customer', ch.reimbursed_customer.before, ch.reimbursed_customer.after);
-    if (ch.reimbursed_store) push('reimbursed_store', 'Возмещено магазину', 'reimbursed_store', ch.reimbursed_store.before, ch.reimbursed_store.after);
-    if (ch.kind) push('kind', 'Тип записи', 'kind', ch.kind.before, ch.kind.after);
+    if (ch.manager_name_snapshot) pushItem(out, 'manager', 'Менеджер', 'manager_name_snapshot', ch.manager_name_snapshot.before, ch.manager_name_snapshot.after, event);
+    if (ch.employee_name) pushItem(out, 'employee', 'Продавец', 'employee_name', ch.employee_name.before, ch.employee_name.after, event);
+    if (ch.violation_type_snapshot) pushItem(out, 'violation', 'Тип нарушения', 'violation_type_snapshot', ch.violation_type_snapshot.before, ch.violation_type_snapshot.after, event);
+    if (ch.story) pushItem(out, 'story', 'Фабула', 'story', ch.story.before, ch.story.after, event);
+    if (ch.damage_customer) pushItem(out, 'damage_customer', 'Ущерб покупателю', 'damage_customer', ch.damage_customer.before, ch.damage_customer.after, event);
+    if (ch.damage_store) pushItem(out, 'damage_store', 'Ущерб магазину', 'damage_store', ch.damage_store.before, ch.damage_store.after, event);
+    if (ch.reimbursed_customer) pushItem(out, 'reimbursed_customer', 'Возмещено покупателю', 'reimbursed_customer', ch.reimbursed_customer.before, ch.reimbursed_customer.after, event);
+    if (ch.reimbursed_store) pushItem(out, 'reimbursed_store', 'Возмещено магазину', 'reimbursed_store', ch.reimbursed_store.before, ch.reimbursed_store.after, event);
+    if (ch.kind) pushItem(out, 'kind', 'Тип записи', 'kind', ch.kind.before, ch.kind.after, event);
 
     if (ch.evaluation_data?.before && ch.evaluation_data?.after) {
       const before = ch.evaluation_data.before || {};
       const after = ch.evaluation_data.after || {};
-      if ((before.start_time || '') !== (after.start_time || '')) push('eval:start_time', 'Время', 'eval:start_time', before.start_time, after.start_time);
-      if ((before.buyer_gender || '') !== (after.buyer_gender || '')) push('eval:buyer_gender', 'Пол покупателя', 'eval:buyer_gender', before.buyer_gender, after.buyer_gender);
+      if ((before.start_time || '') !== (after.start_time || '')) pushItem(out, 'eval:start_time', 'Время', 'eval:start_time', before.start_time, after.start_time, event);
+      if ((before.buyer_gender || '') !== (after.buyer_gender || '')) pushItem(out, 'eval:buyer_gender', 'Пол покупателя', 'eval:buyer_gender', before.buyer_gender, after.buyer_gender, event);
       const bs = Array.isArray(before.scores) ? before.scores : [];
       const as = Array.isArray(after.scores) ? after.scores : [];
       CRITERIA.forEach((criterion, i) => {
-        if (Number(bs[i] || 0) !== Number(as[i] || 0)) push(`eval:score:${i}`, criterion, `eval:score:${i}`, Number(bs[i] || 0), Number(as[i] || 0));
+        if (Number(bs[i] || 0) !== Number(as[i] || 0)) pushItem(out, `eval:score:${i}`, criterion, `eval:score:${i}`, Number(bs[i] || 0), Number(as[i] || 0), event);
       });
-      if ((before.comment || '') !== (after.comment || '')) push('eval:comment', 'Комментарий', 'eval:comment', before.comment, after.comment);
+      if ((before.comment || '') !== (after.comment || '')) pushItem(out, 'eval:comment', 'Комментарий', 'eval:comment', before.comment, after.comment, event);
     }
 
-    return result;
+    return out;
+  }
+
+  function renderFriendlyAuditChanges(event) {
+    if (event.action === 'delete') {
+      const ch = event.changes || {};
+      const bits = [];
+      if (ch.record_date) bits.push(`Дата: ${fmtDate(String(ch.record_date))}`);
+      if (ch.store) bits.push(`Магазин: ${ch.store}`);
+      if (ch.employee) bits.push(`Продавец: ${ch.employee}`);
+      if (ch.manager) bits.push(`Менеджер: ${ch.manager}`);
+      return `<div class="audit-change"><b>Запись удалена</b>${bits.length ? `<div class="muted small">${esc(bits.join(' · '))}</div>` : ''}</div>`;
+    }
+
+    const items = friendlyEventChanges(event);
+    return items.map(item => `
+      <div class="priz-audit-change">
+        <div class="priz-audit-change-label">${esc(item.label)}</div>
+        <div class="priz-audit-change-values">
+          <span class="priz-audit-before">Было: ${esc(valueText(item.key, item.before))}</span>
+          <span class="priz-audit-arrow">→</span>
+          <span class="priz-audit-after">Стало: ${esc(valueText(item.key, item.after))}</span>
+        </div>
+      </div>`).join('');
   }
 
   function latestFriendlyChanges(events) {
@@ -109,23 +137,10 @@
     return out;
   }
 
-  function collectChangedFields(events) {
-    const changed = new Set();
-    for (const event of events || []) {
-      for (const item of friendlyEventChanges(event)) changed.add(item.id);
-      const raw = meaningfulChanges(event?.changes || {});
-      if (raw.store_id || raw.store_number_snapshot || raw.store_name_snapshot) changed.add('store');
-      if (raw.manager_id || raw.manager_name_snapshot) changed.add('manager');
-      if (raw.violation_type_id || raw.violation_type_snapshot) changed.add('violation');
-    }
-    return changed;
-  }
-
   function markDetailByLabel(root, label, shouldMark) {
     if (!shouldMark) return;
     for (const el of root.querySelectorAll('.detail')) {
-      const k = el.querySelector('.k');
-      if (k?.textContent.trim() === label) el.classList.add('priz-changed-field');
+      if (el.querySelector('.k')?.textContent.trim() === label) el.classList.add('priz-changed-field');
     }
   }
 
@@ -166,23 +181,23 @@
   }
 
   async function highlightRecordChanges(recordId) {
-    if (!['owner', 'boss'].includes(currentUser?.role)) return;
+    if (!['owner','boss'].includes(currentUser?.role)) return;
     const root = document.getElementById('viewDialogBody');
     if (!root) return;
 
-    const { data, error } = await sb
-      .from('audit_log')
+    const { data, error } = await sb.from('audit_log')
       .select('changes,actor_name,created_at')
       .eq('record_id', recordId)
       .eq('action', 'update')
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending:false })
       .limit(200);
-
     if (error || !data?.length) return;
-    const events = data.filter(x => Object.keys(meaningfulChanges(x.changes)).length > 0);
+
+    const events = data.filter(x => friendlyEventChanges(x).length > 0);
     if (!events.length) return;
 
-    const changed = collectChangedFields(events);
+    const items = latestFriendlyChanges(events);
+    const changed = new Set(items.map(x => x.id));
     renderExactChangesPanel(root, events);
 
     markDetailByLabel(root, 'Сотрудник', changed.has('employee'));
@@ -194,7 +209,6 @@
     markDetailByLabel(root, 'Возмещено магазину', changed.has('reimbursed_store'));
     markDetailByLabel(root, 'Время', changed.has('eval:start_time'));
     markDetailByLabel(root, 'Пол покупателя', changed.has('eval:buyer_gender'));
-
     markStorySection(root, 'Фабула', changed.has('story'));
     markStorySection(root, 'Комментарий', changed.has('eval:comment'));
 
@@ -209,10 +223,9 @@
     if (changed.has('record_date')) headerChanges.push('Дата');
     if (changed.has('store')) headerChanges.push('Магазин');
     if (changed.has('manager')) headerChanges.push('Менеджер');
-
-    const dialogHead = root.querySelector('.dialog-head');
-    if (headerChanges.length && dialogHead) {
-      const left = dialogHead.firstElementChild;
+    const head = root.querySelector('.dialog-head');
+    if (headerChanges.length && head) {
+      const left = head.firstElementChild;
       if (left && !left.querySelector('.priz-change-summary')) {
         const summary = document.createElement('div');
         summary.className = 'priz-change-summary';
@@ -222,10 +235,16 @@
     }
   }
 
-  const originalViewRecord = window.viewRecord;
-  if (typeof originalViewRecord === 'function') {
+  const baseViewRecord = window.viewRecord;
+  if (typeof baseViewRecord === 'function') {
     window.viewRecord = async function(id) {
-      await originalViewRecord(id);
+      await baseViewRecord(id);
+      const root = document.getElementById('viewDialogBody');
+      if (root) {
+        for (const el of root.querySelectorAll('.detail .k')) {
+          if (el.textContent.trim() === 'Сотрудник') el.textContent = 'Продавец';
+        }
+      }
       try { await highlightRecordChanges(id); } catch (e) { console.warn('Change highlight failed', e); }
     };
   }
@@ -235,7 +254,6 @@
     const regCode = document.getElementById('regionSelect')?.value || 'all';
     const regionId = regCode === 'all' ? null : REGIONS[regCode]?.id || null;
     const regionName = regCode === 'all' ? 'по всем регионам' : `по региону «${REGIONS[regCode]?.name || regCode}»`;
-
     const c = document.getElementById('confirmDialog');
     const title = document.getElementById('confirmTitle');
     const text = document.getElementById('confirmText');
@@ -246,14 +264,13 @@
     text.textContent = `Будут удалены все события журнала ${regionName}. Восстановить их можно будет только из резервной копии.`;
     ok.textContent = 'Очистить';
     c.showModal();
-
     c.onclose = async () => {
       const confirmed = c.returnValue === 'ok';
       title.textContent = 'Подтверждение';
       ok.textContent = 'Удалить';
       if (!confirmed) return;
       try {
-        const { data, error } = await sb.rpc('clear_audit_history', { p_region_id: regionId });
+        const { data, error } = await sb.rpc('clear_audit_history', { p_region_id:regionId });
         if (error) throw error;
         toast(`История очищена · удалено ${Number(data?.deleted || 0)} событий`);
         await window.renderAudit();
@@ -265,32 +282,16 @@
   }
 
   window.renderAudit = async function() {
-    if (!['owner', 'boss'].includes(currentUser?.role)) {
-      go('dashboard');
-      return;
-    }
+    if (!['owner','boss'].includes(currentUser?.role)) { go('dashboard'); return; }
 
-    let q = sb
-      .from('audit_log')
-      .select('*')
-      .in('action', ['update', 'delete'])
-      .order('created_at', { ascending: false })
-      .limit(2000);
-
+    let q = sb.from('audit_log').select('*').in('action',['update','delete']).order('created_at',{ascending:false}).limit(2000);
     const reg = document.getElementById('regionSelect')?.value || 'all';
     if (reg !== 'all') q = q.eq('region_id', REGIONS[reg]?.id);
-
     const { data, error } = await q;
     if (error) throw error;
 
-    const events = (data || []).filter(x =>
-      x.action === 'delete' ||
-      (x.action === 'update' && Object.keys(meaningfulChanges(x.changes)).length > 0)
-    );
-
-    const clearButton = currentUser?.role === 'owner'
-      ? '<button class="btn danger small-btn priz-audit-clear" type="button">Очистить историю</button>'
-      : '';
+    const events = (data || []).filter(x => x.action === 'delete' || (x.action === 'update' && friendlyEventChanges(x).length > 0));
+    const clearButton = currentUser?.role === 'owner' ? '<button class="btn danger small-btn priz-audit-clear" type="button">Очистить историю</button>' : '';
 
     document.getElementById('content').innerHTML = `
       <div class="panel" style="margin-top:0">
@@ -306,16 +307,14 @@
         </div>
         ${events.length ? events.map(x => `
           <div class="audit-item ${x.record_id ? 'audit-clickable' : ''}" ${x.record_id ? `data-record-id="${esc(x.record_id)}"` : ''}>
-            <div class="audit-line"><b>${esc(auditActionTitle(x.action))}</b><span class="muted small">${fmtDateTime(x.created_at)}</span></div>
+            <div class="audit-line"><b>${esc(actionTitle(x.action))}</b><span class="muted small">${fmtDateTime(x.created_at)}</span></div>
             <div class="muted small">${esc(x.actor_name || 'Система')}</div>
-            ${renderAuditChanges(x)}
+            ${renderFriendlyAuditChanges(x)}
             ${x.record_id ? '<div class="audit-open-hint">Открыть запись →</div>' : ''}
           </div>`).join('') : '<div class="empty"><b>История пока пустая</b>Здесь появятся реальные изменения и удаления записей.</div>'}
       </div>`;
 
-    document.querySelectorAll('.audit-clickable').forEach(x => {
-      x.onclick = () => window.viewRecord(x.dataset.recordId);
-    });
+    document.querySelectorAll('.audit-clickable').forEach(x => { x.onclick = () => window.viewRecord(x.dataset.recordId); });
     document.querySelector('.priz-audit-clear')?.addEventListener('click', clearAuditHistory);
   };
 })();
