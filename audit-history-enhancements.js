@@ -7,7 +7,13 @@
       .priz-audit-head-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
       .priz-changed-field{border:1px solid rgba(255,82,82,.55)!important;background:rgba(255,82,82,.08)!important;box-shadow:0 0 0 1px rgba(255,82,82,.08) inset}
       .priz-changed-field .k,.priz-changed-field .v,.priz-changed-field span,.priz-changed-field b{color:#ff7777!important}
-      .priz-changed-story{border:1px solid rgba(255,82,82,.55)!important;background:rgba(255,82,82,.08)!important;color:#ff8b8b!important}
+      .priz-changed-story{border:1px solid rgba(255,82,82,.32)!important;background:rgba(255,82,82,.035)!important}
+      .priz-diff-context{color:#cfd3dc;font-weight:400;text-decoration:none}
+      .priz-diff-removed{color:#8d93a1;text-decoration:line-through;text-decoration-thickness:1px;background:rgba(141,147,161,.08);border-radius:3px;padding:0 1px}
+      .priz-diff-added{color:#ff6f6f;font-weight:800;background:rgba(255,82,82,.10);border-radius:3px;padding:0 1px}
+      .priz-text-diff{display:grid;gap:7px;width:100%}
+      .priz-text-diff-line{line-height:1.55;white-space:normal;word-break:break-word}
+      .priz-text-diff-label{display:inline-block;min-width:45px;color:#777e8c;font-size:10px;font-weight:800;margin-right:6px}
       .priz-change-summary{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
       .priz-change-tag{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;border:1px solid rgba(255,82,82,.48);background:rgba(255,82,82,.10);color:#ff7777;font-size:11px;font-weight:800}
       .priz-change-panel{margin:14px 0 4px;border:1px solid rgba(255,82,82,.38);border-radius:12px;background:rgba(255,82,82,.045);overflow:hidden}
@@ -47,6 +53,59 @@
     if (['damage_customer','damage_store','reimbursed_customer','reimbursed_store'].includes(key)) return money(value);
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
+  }
+
+
+  function diffTokens(value) {
+    const text = String(value ?? '');
+    return text.match(/\s+|[A-Za-zА-Яа-яЁёІіЇїЄєҐґ0-9_]+|[^\sA-Za-zА-Яа-яЁёІіЇїЄєҐґ0-9_]/g) || [];
+  }
+
+  function textDiff(beforeValue, afterValue) {
+    const before = diffTokens(beforeValue);
+    const after = diffTokens(afterValue);
+    const n = before.length, m = after.length;
+    const dp = Array.from({length:n+1}, () => new Uint16Array(m+1));
+    for (let i=n-1;i>=0;i--) {
+      for (let j=m-1;j>=0;j--) {
+        dp[i][j] = before[i] === after[j] ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1]);
+      }
+    }
+    const oldParts = [], newParts = [];
+    let i=0, j=0;
+    while (i<n || j<m) {
+      if (i<n && j<m && before[i] === after[j]) {
+        const t = esc(before[i]);
+        oldParts.push(`<span class="priz-diff-context">${t}</span>`);
+        newParts.push(`<span class="priz-diff-context">${t}</span>`);
+        i++; j++;
+      } else if (j<m && (i===n || dp[i][j+1] >= dp[i+1][j])) {
+        newParts.push(`<span class="priz-diff-added">${esc(after[j])}</span>`);
+        j++;
+      } else if (i<n) {
+        oldParts.push(`<span class="priz-diff-removed">${esc(before[i])}</span>`);
+        i++;
+      }
+    }
+    return { beforeHtml: oldParts.join(''), afterHtml: newParts.join('') };
+  }
+
+  function isLongTextItem(item) {
+    return item?.id === 'story' || item?.id === 'eval:comment';
+  }
+
+  function renderItemValues(item, compact=false) {
+    if (isLongTextItem(item)) {
+      const d = textDiff(valueText(item.key, item.before), valueText(item.key, item.after));
+      return `<div class="priz-text-diff">
+        <div class="priz-text-diff-line"><span class="priz-text-diff-label">Было:</span>${d.beforeHtml}</div>
+        <div class="priz-text-diff-line"><span class="priz-text-diff-label">Стало:</span>${d.afterHtml}</div>
+      </div>`;
+    }
+    const clsPrefix = compact ? 'priz-audit' : 'priz-change';
+    return `<span class="${clsPrefix}-before">Было: ${esc(valueText(item.key, item.before))}</span>
+      <span class="${clsPrefix}-arrow">→</span>
+      <span class="${clsPrefix}-after">Стало: ${esc(valueText(item.key, item.after))}</span>`;
   }
 
   function pushItem(out, id, label, key, before, after, event) {
@@ -117,9 +176,7 @@
       <div class="priz-audit-change">
         <div class="priz-audit-change-label">${esc(item.label)}</div>
         <div class="priz-audit-change-values">
-          <span class="priz-audit-before">Было: ${esc(valueText(item.key, item.before))}</span>
-          <span class="priz-audit-arrow">→</span>
-          <span class="priz-audit-after">Стало: ${esc(valueText(item.key, item.after))}</span>
+          ${renderItemValues(item, true)}
         </div>
       </div>`).join('');
   }
@@ -144,15 +201,17 @@
     }
   }
 
-  function markStorySection(root, headingText, shouldMark) {
-    if (!shouldMark) return;
+  function markStorySection(root, headingText, item) {
+    if (!item) return;
     for (const h of root.querySelectorAll('h3')) {
       if (h.textContent.trim() !== headingText) continue;
       const next = h.nextElementSibling;
-      if (next?.classList.contains('story')) {
-        h.style.color = '#ff7777';
-        next.classList.add('priz-changed-story');
-      }
+      if (!next?.classList.contains('story')) continue;
+      const d = textDiff(valueText(item.key, item.before), valueText(item.key, item.after));
+      h.style.color = '#ff7777';
+      next.classList.add('priz-changed-story');
+      // В самой текущей записи оставляем обычный текст, а красным отмечаем только добавленные/заменённые фрагменты.
+      next.innerHTML = d.afterHtml;
     }
   }
 
@@ -170,9 +229,7 @@
         <div class="priz-change-row">
           <div class="priz-change-label">${esc(item.label)}</div>
           <div class="priz-change-values">
-            <span class="priz-change-before">Было: ${esc(valueText(item.key, item.before))}</span>
-            <span class="priz-change-arrow">→</span>
-            <span class="priz-change-after">Стало: ${esc(valueText(item.key, item.after))}</span>
+            ${renderItemValues(item, false)}
           </div>
           <div class="priz-change-meta">${esc(item.actor)}${item.createdAt ? ` · ${esc(fmtDateTime(item.createdAt))}` : ''}</div>
         </div>`).join('')}
@@ -209,8 +266,8 @@
     markDetailByLabel(root, 'Возмещено магазину', changed.has('reimbursed_store'));
     markDetailByLabel(root, 'Время', changed.has('eval:start_time'));
     markDetailByLabel(root, 'Пол покупателя', changed.has('eval:buyer_gender'));
-    markStorySection(root, 'Фабула', changed.has('story'));
-    markStorySection(root, 'Комментарий', changed.has('eval:comment'));
+    markStorySection(root, 'Фабула', items.find(x => x.id === 'story'));
+    markStorySection(root, 'Комментарий', items.find(x => x.id === 'eval:comment'));
 
     CRITERIA.forEach((criterion, i) => {
       if (!changed.has(`eval:score:${i}`)) return;
