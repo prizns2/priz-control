@@ -2,7 +2,6 @@
   const SEARCH_PLACEHOLDER = 'Поиск: магазин, продавец...';
   const SEARCH_TITLE = 'Поиск по магазину, продавцу, менеджеру и оператору';
 
-  // Не показываем старую надпись «фабула» даже на один кадр.
   const style = document.createElement('style');
   style.id = 'prizTerminologyStyles';
   style.textContent = `
@@ -21,7 +20,9 @@
       .replace(/Сотрудник(?=\s*:|\s*$)/g, 'Продавец')
       .replace(/СОТРУДНИК(?=\s*:|\s*$)/g, 'ПРОДАВЕЦ')
       .replace(/Автор(?=\s*:|\s*$)/g, 'Оператор')
-      .replace(/АВТОР(?=\s*:|\s*$)/g, 'ОПЕРАТОР');
+      .replace(/АВТОР(?=\s*:|\s*$)/g, 'ОПЕРАТОР')
+      .replace(/Запросил(?=\s*:|\s*$)/g, 'Запросил(а)')
+      .replace(/ЗАПРОСИЛ(?=\s*:|\s*$)/g, 'ЗАПРОСИЛ(А)');
 
     return s;
   }
@@ -49,10 +50,14 @@
       trimmed === 'СОТРУДНИК' ||
       trimmed === 'Сотрудник / продавец' ||
       trimmed === 'СОТРУДНИК / ПРОДАВЕЦ' ||
+      trimmed === 'Запросил' ||
+      trimmed === 'ЗАПРОСИЛ' ||
       /(^|·\s*)Автор\s*:/.test(trimmed) ||
       /(^|·\s*)АВТОР\s*:/.test(trimmed) ||
       /^Сотрудник\s*:/.test(trimmed) ||
-      /^СОТРУДНИК\s*:/.test(trimmed);
+      /^СОТРУДНИК\s*:/.test(trimmed) ||
+      /^Запросил\s*:/.test(trimmed) ||
+      /^ЗАПРОСИЛ\s*:/.test(trimmed);
 
     if (!isUiLabel) return;
 
@@ -84,7 +89,6 @@
     let node;
     while ((node = walker.nextNode())) processTextNode(node);
 
-    // Если за один раз вставили целую панель с поиском внутри.
     const nestedSearch = el.querySelector?.('#q');
     if (nestedSearch) prepareSearch(nestedSearch);
   }
