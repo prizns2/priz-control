@@ -1,8 +1,8 @@
 (() => {
-  // PRIZ Control — плавная навигация без мерцания.
-  // Пока новая страница загружается, пользователь продолжает видеть
-  // предыдущую полностью готовую страницу. После завершения загрузки
-  // старый снимок мягко убирается.
+  // PRIZ Control — стабильная навигация без пустых кадров.
+  // Новая страница полностью отрисовывается скрыто, пока пользователь
+  // продолжает видеть предыдущую готовую страницу. После завершения
+  // загрузки содержимое меняется одним кадром.
 
   if (window.__prizNavigationStabilityInstalled) return;
   window.__prizNavigationStabilityInstalled = true;
@@ -15,14 +15,14 @@
   let requestNo = 0;
   let waiters = [];
 
-  function snapshot() {
+  function routeSnapshot() {
     return {
       page: typeof currentPage !== 'undefined' ? currentPage : null,
       region: document.getElementById('regionSelect')?.value || null
     };
   }
 
-  function sameSnapshot(a, b) {
+  function sameRoute(a, b) {
     return a?.page === b?.page && a?.region === b?.region;
   }
 
@@ -35,103 +35,153 @@
     }
   }
 
-  function removeIds(root) {
-    if (!root) return;
-    if (root.id) root.removeAttribute('id');
-    root.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+  function ensureProgressBar() {
+    let bar = document.getElementById('prizRouteProgress');
+    if (bar) return bar;
+
+    const style = document.createElement('style');
+    style.id = 'prizRouteProgressStyles';
+    style.textContent = `
+      #prizRouteProgress{
+        position:fixed;
+        left:0;
+        top:0;
+        width:100%;
+        height:2px;
+        z-index:12000;
+        pointer-events:none;
+        opacity:0;
+        overflow:hidden;
+      }
+      #prizRouteProgress::before{
+        content:"";
+        display:block;
+        width:100%;
+        height:100%;
+        transform:scaleX(0);
+        transform-origin:left center;
+        background:linear-gradient(90deg,#6d4aff,#9b7cff,#6d4aff);
+        box-shadow:0 0 12px rgba(139,92,246,.55);
+      }
+      #prizRouteProgress.loading,
+      #prizRouteProgress.done{
+        opacity:1;
+      }
+      #prizRouteProgress.loading::before{
+        animation:prizRouteProgress 1.05s cubic-bezier(.2,.7,.2,1) infinite;
+      }
+      #prizRouteProgress.done::before{
+        animation:none;
+        transform:scaleX(1);
+        transition:transform .12s ease;
+      }
+      @keyframes prizRouteProgress{
+        0%{transform:translateX(-70%) scaleX(.28)}
+        55%{transform:translateX(8%) scaleX(.62)}
+        100%{transform:translateX(100%) scaleX(.18)}
+      }
+      @media (prefers-reduced-motion: reduce){
+        #prizRouteProgress.loading::before{animation:none;transform:scaleX(.72)}
+      }
+    `;
+    document.head.appendChild(style);
+
+    bar = document.createElement('div');
+    bar.id = 'prizRouteProgress';
+    bar.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(bar);
+    return bar;
   }
 
-  function createTransitionCover() {
+  function startProgress() {
+    const bar = ensureProgressBar();
+    bar.style.opacity = '';
+    bar.classList.remove('done');
+    bar.classList.add('loading');
+  }
+
+  function finishProgress() {
+    const bar = ensureProgressBar();
+    bar.classList.remove('loading');
+    bar.classList.add('done');
+    setTimeout(() => {
+      bar.classList.remove('done');
+      bar.style.opacity = '0';
+    }, 140);
+  }
+
+  function isOnlyLoading(content) {
+    return (
+      content?.children?.length === 1 &&
+      content.firstElementChild?.classList?.contains('loading-line')
+    );
+  }
+
+  function syncScrollPositions(source, clone) {
+    try {
+      clone.scrollTop = source.scrollTop;
+      clone.scrollLeft = source.scrollLeft;
+
+      const sourceNodes = source.querySelectorAll('*');
+      const cloneNodes = clone.querySelectorAll('*');
+      const count = Math.min(sourceNodes.length, cloneNodes.length);
+
+      for (let i = 0; i < count; i++) {
+        if (sourceNodes[i].scrollTop || sourceNodes[i].scrollLeft) {
+          cloneNodes[i].scrollTop = sourceNodes[i].scrollTop;
+          cloneNodes[i].scrollLeft = sourceNodes[i].scrollLeft;
+        }
+      }
+    } catch (_) {}
+  }
+
+  function beginHiddenRender() {
     const content = document.getElementById('content');
     const app = document.getElementById('appView');
 
-    if (!content || !app || app.classList.contains('hidden')) return null;
-    if (!content.childNodes.length) return null;
-
-    // На первом экране загрузки ничего не маскируем.
-    const onlyLoading =
-      content.children.length === 1 &&
-      content.firstElementChild?.classList.contains('loading-line');
-
-    if (onlyLoading) return null;
-
-    const rect = content.getBoundingClientRect();
-    if (rect.width < 1 || rect.height < 1) return null;
-
-    const cover = content.cloneNode(true);
-    removeIds(cover);
-
-    cover.id = 'prizNavigationTransitionCover';
-    cover.setAttribute('aria-hidden', 'true');
-    cover.inert = true;
-
-    const contentStyle = getComputedStyle(content);
-    const parentStyle = content.parentElement
-      ? getComputedStyle(content.parentElement)
-      : null;
-
-    let background = contentStyle.backgroundColor;
-    if (!background || background === 'rgba(0, 0, 0, 0)' || background === 'transparent') {
-      background = parentStyle?.backgroundColor || '#090a0f';
+    if (!content || !app || app.classList.contains('hidden')) {
+      return { content: null, snapshot: null, oldDisplay: '' };
     }
 
-    Object.assign(cover.style, {
-      position: 'fixed',
-      left: `${rect.left}px`,
-      top: `${rect.top}px`,
-      width: `${rect.width}px`,
-      height: `${Math.max(rect.height, window.innerHeight - Math.max(0, rect.top))}px`,
-      margin: '0',
-      boxSizing: 'border-box',
-      overflow: 'hidden',
-      pointerEvents: 'none',
-      userSelect: 'none',
-      zIndex: '9990',
-      background,
-      opacity: '1',
-      transition: 'opacity 90ms ease'
-    });
-
-    // Клонированные sticky/fixed элементы не должны вылезать из снимка.
-    cover.querySelectorAll('*').forEach(el => {
-      const p = getComputedStyle(el).position;
-      if (p === 'fixed') el.style.position = 'absolute';
-    });
-
-    document.body.appendChild(cover);
-    return cover;
-  }
-
-  function removeTransitionCover(cover) {
-    if (!cover?.isConnected) return;
-
-    requestAnimationFrame(() => {
-      cover.style.opacity = '0';
-      setTimeout(() => {
-        if (cover.isConnected) cover.remove();
-      }, 100);
-    });
-  }
-
-  async function renderSmoothly(context, args) {
-    const oldCover = document.getElementById('prizNavigationTransitionCover');
-    if (oldCover) oldCover.remove();
-
-    const cover = createTransitionCover();
-
-    try {
-      await baseRenderPage.apply(context, args);
-
-      // Даём браузеру один кадр на отрисовку полностью готового DOM,
-      // и только затем открываем новую страницу.
-      await new Promise(resolve =>
-        requestAnimationFrame(() =>
-          requestAnimationFrame(resolve)
-        )
-      );
-    } finally {
-      removeTransitionCover(cover);
+    if (!content.childNodes.length || isOnlyLoading(content)) {
+      return { content, snapshot: null, oldDisplay: content.style.display };
     }
+
+    const snapshot = content.cloneNode(true);
+    snapshot.removeAttribute('id');
+    snapshot.id = 'prizRouteSnapshot';
+    snapshot.setAttribute('aria-hidden', 'true');
+    snapshot.inert = true;
+    snapshot.style.pointerEvents = 'none';
+    snapshot.style.userSelect = 'none';
+
+    // Вставляем снимок ПОСЛЕ оригинала. Оригинал остаётся первым в DOM,
+    // поэтому все querySelector/getElementById во время скрытой отрисовки
+    // продолжают работать с настоящей новой страницей, а не со снимком.
+    content.insertAdjacentElement('afterend', snapshot);
+    syncScrollPositions(content, snapshot);
+
+    const oldDisplay = content.style.display;
+    content.style.display = 'none';
+
+    return { content, snapshot, oldDisplay };
+  }
+
+  function revealRenderedContent(stage) {
+    const { content, snapshot, oldDisplay } = stage || {};
+    if (!content) return;
+
+    content.style.display = oldDisplay || '';
+
+    if (snapshot?.isConnected) {
+      snapshot.remove();
+    }
+  }
+
+  function nextPaint() {
+    return new Promise(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
   }
 
   async function drain(context, args) {
@@ -139,36 +189,53 @@
     running = true;
 
     let finalError = null;
+    let stage = null;
+
+    startProgress();
 
     try {
-      while (pending) {
-        pending = false;
+      stage = beginHiddenRender();
 
-        const runNo = requestNo;
-        const before = snapshot();
+      for (;;) {
+        while (pending) {
+          pending = false;
 
-        try {
-          await renderSmoothly(context, args);
-        } catch (err) {
-          const afterError = snapshot();
+          const runNo = requestNo;
+          const before = routeSnapshot();
 
-          // Ошибка устаревшего перехода не должна ломать последнюю вкладку.
-          if (runNo === requestNo && sameSnapshot(before, afterError)) {
-            finalError = err;
-            console.error(err);
-          } else {
-            console.debug('PRIZ Control: устаревшая загрузка отменена', err);
+          try {
+            await baseRenderPage.apply(context, args);
+          } catch (err) {
+            const afterError = routeSnapshot();
+
+            if (runNo === requestNo && sameRoute(before, afterError)) {
+              finalError = err;
+              console.error(err);
+            } else {
+              console.debug('PRIZ Control: устаревшая загрузка отменена', err);
+            }
+          }
+
+          const after = routeSnapshot();
+
+          if (runNo !== requestNo || !sameRoute(before, after)) {
+            pending = true;
+            finalError = null;
           }
         }
 
-        const after = snapshot();
+        // Браузер получает время построить layout новой скрытой страницы.
+        await nextPaint();
 
-        if (runNo !== requestNo || !sameSnapshot(before, after)) {
-          pending = true;
-          finalError = null;
-        }
+        // Если пользователь нажал другую вкладку прямо во время подготовки
+        // кадра — не показываем промежуточную страницу, а сразу рендерим последнюю.
+        if (pending) continue;
+
+        break;
       }
     } finally {
+      revealRenderedContent(stage);
+      finishProgress();
       running = false;
       settleWaiters(finalError);
 
