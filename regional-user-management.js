@@ -1,4 +1,16 @@
 (() => {
+  const LOADING_CLASS = 'priz-regional-users-loading';
+
+  const style = document.createElement('style');
+  style.id = 'prizRegionalUsersNoFlashStyle';
+  style.textContent = `
+    html.${LOADING_CLASS} .settings-card:has(.users-list) {
+      visibility: hidden !important;
+    }
+  `;
+  document.getElementById(style.id)?.remove();
+  document.head.appendChild(style);
+
   const originalLoadProfileRegionalUsers = loadProfile;
   const originalRenderSettingsRegionalUsers = renderSettings;
 
@@ -161,15 +173,19 @@
   }
 
   renderSettings = async function (...args) {
-    const result = await originalRenderSettingsRegionalUsers.apply(this, args);
+    document.documentElement.classList.add(LOADING_CLASS);
 
     try {
+      const result = await originalRenderSettingsRegionalUsers.apply(this, args);
       await applyRegionalUserView();
+      return result;
     } catch (err) {
       console.error('regional user management:', err);
       toast('Не удалось обновить список пользователей', true);
+    } finally {
+      requestAnimationFrame(() => {
+        document.documentElement.classList.remove(LOADING_CLASS);
+      });
     }
-
-    return result;
   };
 })();
