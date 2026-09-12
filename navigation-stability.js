@@ -1,9 +1,8 @@
 (() => {
-  // PRIZ Control — navigation architecture v4.
-  // 1) Native View Transitions: old screen stays visible until the new one is fully ready.
-  // 2) Live DOM page cache: revisiting a page restores the real nodes + event handlers instantly.
-  // 3) Fast-click coalescing: intermediate pages are never shown.
-  // No cloned overlays, no duplicate IDs, no fake screenshots.
+  // PRIZ Control — navigation architecture v5.
+  // Цель: старый экран виден до полной готовности нового, затем один мгновенный кадр.
+  // Никакого cross-fade и одновременного показа старой/новой страницы.
+  // Live DOM cache, быстрые повторные переходы и coalescing быстрых кликов сохранены.
 
   if (window.__prizNavigationStabilityInstalled) return;
   window.__prizNavigationStabilityInstalled = true;
@@ -22,33 +21,33 @@
   let progressTimer = null;
 
   function injectStyles() {
-    if (document.getElementById('prizNavigationV4Styles')) return;
-    const style = document.createElement('style');
-    style.id = 'prizNavigationV4Styles';
-    style.textContent = `
-      #content { view-transition-name: priz-content; }
+    if (document.getElementById('prizNavigationV5Styles')) return;
 
-      ::view-transition-old(root),
+    // Удаляем стили предыдущей версии, если браузер держал их в текущем DOM.
+    document.getElementById('prizNavigationV4Styles')?.remove();
+
+    const style = document.createElement('style');
+    style.id = 'prizNavigationV5Styles';
+    style.textContent = `
+      /*
+       * Используем только ROOT View Transition.
+       * Старый viewport браузер держит во время async-render.
+       * Когда новый DOM готов — старый снимок сразу исчезает, новый сразу виден.
+       * Нет двух полупрозрачных слоёв и нет визуального смешивания.
+       */
+      ::view-transition-group(root) {
+        animation-duration: 0s !important;
+        animation-delay: 0s !important;
+      }
+
+      ::view-transition-old(root) {
+        animation: none !important;
+        opacity: 0 !important;
+      }
+
       ::view-transition-new(root) {
         animation: none !important;
-      }
-
-      ::view-transition-old(priz-content) {
-        animation: priz-nav-out 70ms ease-out both;
-      }
-
-      ::view-transition-new(priz-content) {
-        animation: priz-nav-in 90ms ease-out both;
-      }
-
-      @keyframes priz-nav-out {
-        from { opacity: 1; }
-        to   { opacity: .985; }
-      }
-
-      @keyframes priz-nav-in {
-        from { opacity: .985; }
-        to   { opacity: 1; }
+        opacity: 1 !important;
       }
 
       #prizNavProgress {
@@ -64,32 +63,33 @@
         transform-origin: left center;
         background: currentColor;
         color: #8b5cf6;
-        transition: opacity 100ms ease, transform 900ms cubic-bezier(.2,.8,.2,1);
+        transition: opacity 90ms ease, transform 700ms cubic-bezier(.2,.8,.2,1);
       }
 
       #prizNavProgress.show {
-        opacity: .9;
-        transform: scaleX(.78);
+        opacity: .85;
+        transform: scaleX(.76);
       }
 
       #prizNavProgress.done {
         opacity: 0;
         transform: scaleX(1);
-        transition: opacity 160ms ease, transform 120ms ease;
+        transition: opacity 130ms ease, transform 90ms ease;
       }
 
       @media (prefers-reduced-motion: reduce) {
-        ::view-transition-old(priz-content),
-        ::view-transition-new(priz-content) { animation: none !important; }
         #prizNavProgress { transition: none !important; }
       }
     `;
     document.head.appendChild(style);
 
-    const bar = document.createElement('div');
-    bar.id = 'prizNavProgress';
-    bar.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(bar);
+    let bar = document.getElementById('prizNavProgress');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'prizNavProgress';
+      bar.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(bar);
+    }
   }
 
   injectStyles();
@@ -99,17 +99,24 @@
     if (!bar) return;
     clearTimeout(progressTimer);
     bar.classList.remove('show', 'done');
-    progressTimer = setTimeout(() => bar.classList.add('show'), 120);
+
+    // На действительно быстрых переходах индикатор вообще не появляется.
+    progressTimer = setTimeout(() => bar.classList.add('show'), 150);
   }
 
   function progressEnd() {
     const bar = document.getElementById('prizNavProgress');
     if (!bar) return;
     clearTimeout(progressTimer);
-    if (!bar.classList.contains('show')) return;
+
+    if (!bar.classList.contains('show')) {
+      bar.classList.remove('done');
+      return;
+    }
+
     bar.classList.remove('show');
     bar.classList.add('done');
-    setTimeout(() => bar.classList.remove('done'), 180);
+    setTimeout(() => bar.classList.remove('done'), 150);
   }
 
   function regionValue() {
@@ -127,8 +134,13 @@
 
   function captureScroll(root) {
     const main = document.querySelector('.main');
-    const scrollers = [...(root?.querySelectorAll('.table-wrap,.attendance-table-wrap,[data-priz-keep-scroll]') || [])]
-      .map(el => ({ top: el.scrollTop, left: el.scrollLeft }));
+    const scrollers = [...(root?.querySelectorAll(
+      '.table-wrap,.attendance-table-wrap,[data-priz-keep-scroll]'
+    ) || [])].map(el => ({
+      top: el.scrollTop,
+      left: el.scrollLeft
+    }));
+
     return {
       windowY: window.scrollY,
       mainTop: main?.scrollTop || 0,
@@ -138,16 +150,24 @@
 
   function restoreScroll(root, state) {
     if (!state) return;
+
     const main = document.querySelector('.main');
     if (main) main.scrollTop = state.mainTop || 0;
-    const list = [...(root?.querySelectorAll('.table-wrap,.attendance-table-wrap,[data-priz-keep-scroll]') || [])];
+
+    const list = [...(root?.querySelectorAll(
+      '.table-wrap,.attendance-table-wrap,[data-priz-keep-scroll]'
+    ) || [])];
+
     list.forEach((el, i) => {
       const saved = state.scrollers?.[i];
       if (!saved) return;
       el.scrollTop = saved.top || 0;
       el.scrollLeft = saved.left || 0;
     });
-    if (state.windowY) window.scrollTo({ top: state.windowY, behavior: 'instant' });
+
+    if (state.windowY) {
+      window.scrollTo({ top: state.windowY, behavior: 'instant' });
+    }
   }
 
   function pruneCache() {
@@ -162,8 +182,12 @@
     const content = document.getElementById('content');
     if (!content || !visibleKey || !content.childNodes.length) return;
 
+    const scroll = captureScroll(content);
     const fragment = document.createDocumentFragment();
-    while (content.firstChild) fragment.appendChild(content.firstChild);
+
+    while (content.firstChild) {
+      fragment.appendChild(content.firstChild);
+    }
 
     pageCache.delete(visibleKey);
     pageCache.set(visibleKey, {
@@ -171,18 +195,21 @@
       renderedAt: visibleRenderedAt || Date.now(),
       title: document.getElementById('pageTitle')?.textContent || '',
       eyebrow: document.getElementById('pageEyebrow')?.textContent || '',
-      scroll: captureScroll(fragment)
+      scroll
     });
+
     pruneCache();
   }
 
   function takeCached(key) {
     const entry = pageCache.get(key);
     if (!entry) return null;
+
     if (Date.now() - entry.renderedAt > PAGE_CACHE_TTL) {
       pageCache.delete(key);
       return null;
     }
+
     pageCache.delete(key);
     return entry;
   }
@@ -192,18 +219,21 @@
     if (!content || !entry) return false;
 
     content.replaceChildren(entry.fragment);
+
     const title = document.getElementById('pageTitle');
     const eyebrow = document.getElementById('pageEyebrow');
+
     if (title && entry.title) title.textContent = entry.title;
     if (eyebrow && entry.eyebrow) eyebrow.textContent = entry.eyebrow;
 
     visibleKey = key;
     visibleRenderedAt = entry.renderedAt;
+
     requestAnimationFrame(() => restoreScroll(content, entry.scroll));
     return true;
   }
 
-  async function renderLatestInsideTransition(args) {
+  async function renderLatest(args) {
     let completedSeq = -1;
 
     while (completedSeq !== requestedSeq) {
@@ -212,6 +242,7 @@
 
       if (visibleKey !== key) {
         stashVisible();
+
         const cached = takeCached(key);
         if (cached) {
           restoreCached(key, cached);
@@ -220,6 +251,10 @@
       }
 
       await baseRenderPage.apply(window, args);
+
+      // Даём браузеру закончить layout нового экрана до его показа.
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
       visibleKey = key;
       visibleRenderedAt = Date.now();
     }
@@ -227,14 +262,27 @@
 
   async function run(args) {
     progressStart();
+
     try {
       if (typeof document.startViewTransition === 'function') {
-        const transition = document.startViewTransition(() => renderLatestInsideTransition(args));
+        /*
+         * startViewTransition замораживает старый viewport,
+         * пока async callback полностью строит новый экран.
+         * CSS выше делает финальный переход нулевой длительности:
+         * OLD -> NEW за один кадр, без cross-fade.
+         */
+        const transition = document.startViewTransition(() => renderLatest(args));
+
         await transition.updateCallbackDone;
+
+        // Если движок всё же подготовил стандартную анимацию,
+        // принудительно завершаем её. Новый DOM к этому моменту уже готов.
+        try { transition.skipTransition(); } catch (_) {}
+
         try { await transition.finished; } catch (_) {}
       } else {
-        // Older browser fallback. Brave/Chrome uses the branch above.
-        await renderLatestInsideTransition(args);
+        // Fallback для браузера без View Transition API.
+        await renderLatest(args);
       }
     } finally {
       progressEnd();
@@ -247,9 +295,12 @@
     if (!runningPromise) {
       runningPromise = run(args).finally(() => {
         runningPromise = null;
-        // Request could arrive in the tiny gap after the final loop check.
+
+        // Клик мог прийти в очень маленьком окне после финальной проверки.
         const expectedKey = targetKey();
-        if (visibleKey !== expectedKey) stableRenderPage(...args);
+        if (visibleKey !== expectedKey) {
+          stableRenderPage(...args);
+        }
       });
     }
 
@@ -263,8 +314,11 @@
     }
 
     const pages = new Set(Array.isArray(scope) ? scope : [scope]);
+
     for (const key of [...pageCache.keys()]) {
-      if (pages.has(pageNameFromKey(key))) pageCache.delete(key);
+      if (pages.has(pageNameFromKey(key))) {
+        pageCache.delete(key);
+      }
     }
   }
 
