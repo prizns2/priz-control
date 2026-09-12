@@ -282,7 +282,7 @@ body{
   position:relative!important;
   min-width:0!important;
   background:
-    radial-gradient(ellipse at 61% -8%,rgba(112,58,229,.17),transparent 33%),
+    radial-gradient(ellipse at 61% -8%,rgba(124,67,245,.21),transparent 33%),
     linear-gradient(180deg,#090c16 0%,#070a12 64%,#070911 100%)!important;
 }
 
@@ -291,7 +291,7 @@ body{
   position:fixed;
   pointer-events:none;
   z-index:0;
-  top:-310px;
+  top:-265px;
   left:47%;
   width:760px;
   height:515px;
@@ -328,12 +328,21 @@ body{
 /* ---------- TOPBAR ---------- */
 
 .topbar{
-  min-height:108px!important;
-  height:108px!important;
+  min-height:96px!important;
+  height:96px!important;
   padding:0!important;
-  background:rgba(8,10,18,.67)!important;
-  border-bottom:1px solid rgba(89,101,132,.10)!important;
-  backdrop-filter:blur(21px) saturate(125%)!important;
+  background:
+    radial-gradient(ellipse at 62% -85%,rgba(131,75,255,.34),transparent 58%),
+    linear-gradient(
+      180deg,
+      rgba(9,12,22,.72) 0%,
+      rgba(9,12,22,.42) 52%,
+      rgba(9,12,22,.10) 86%,
+      rgba(9,12,22,0) 100%
+    )!important;
+  border-bottom:0!important;
+  box-shadow:none!important;
+  backdrop-filter:blur(11px) saturate(125%)!important;
 }
 
 .priz-topbar-inner{
@@ -443,7 +452,7 @@ body:not(.priz-home-page) .priz-top-motto{
   width:auto!important;
   max-width:none!important;
   margin:0!important;
-  padding:18px 20px 52px!important;
+  padding:10px 20px 52px!important;
 }
 
 #prizPageHost > .priz-page-slot{
