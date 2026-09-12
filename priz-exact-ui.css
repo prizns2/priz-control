@@ -328,8 +328,8 @@ body{
 /* ---------- TOPBAR ---------- */
 
 .topbar{
-  min-height:120px!important;
-  height:120px!important;
+  min-height:108px!important;
+  height:108px!important;
   padding:0!important;
   background:rgba(8,10,18,.67)!important;
   border-bottom:1px solid rgba(89,101,132,.10)!important;
@@ -337,9 +337,10 @@ body{
 }
 
 .priz-topbar-inner{
-  width:min(calc(100% - 48px),var(--px-max));
+  width:calc(100% - 40px);
+  max-width:none;
   height:100%;
-  margin:0 auto;
+  margin:0 20px;
   display:flex;
   align-items:center;
   justify-content:space-between;
@@ -433,6 +434,23 @@ body:not(.priz-home-page) .priz-top-motto{
   width:min(calc(100% - 48px),var(--px-max))!important;
   margin:0 auto!important;
   padding:22px 0 55px!important;
+}
+
+/* v07 — real navigation-v6 host alignment.
+   navigation-stability turns the original .content into #prizPageHost,
+   while the visible #content is a .priz-page-slot without .content. */
+#prizPageHost.content{
+  width:auto!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:18px 20px 52px!important;
+}
+
+#prizPageHost > .priz-page-slot{
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:0!important;
 }
 
 /* ---------- EXACT HOME ---------- */
@@ -986,6 +1004,10 @@ tr.clickable:hover{
   #content.content,
   .priz-page-slot.content{
     width:100%!important;
+    padding:16px!important;
+  }
+
+  #prizPageHost.content{
     padding:16px!important;
   }
 
