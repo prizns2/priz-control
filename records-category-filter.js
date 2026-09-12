@@ -28,31 +28,85 @@
 
   window.fetchRecordPage = async function(filters, page = 0, pageSize = 100) {
     const offset = Math.max(0, Number(page) || 0) * Math.max(1, Number(pageSize) || 100);
-    const { data, error } = await sb.rpc(RPC_NAME, window.secureSearchArgs(filters, offset, pageSize));
+    const { data, error } = await sb.rpc(
+      RPC_NAME,
+      window.secureSearchArgs(filters, offset, pageSize)
+    );
+
     if (error) throw error;
 
     const rawRows = Array.isArray(data?.rows) ? data.rows : [];
     const rows = rawRows.map(r => fromDbRecord(r, []));
     recordCache = rows;
-    return { rows, count: Number(data?.count || 0) };
+
+    return {
+      rows,
+      count: Number(data?.count || 0)
+    };
   };
 
+  // Полная выгрузка без старого лимита 50 000.
+  // Первый запрос получает общее количество, остальные страницы грузим
+  // небольшими параллельными пакетами, чтобы не делать экспорт слишком долгим.
   window.fetchFilteredRecords = async function(filters) {
     const pageSize = 1000;
-    const maxRows = 50000;
-    const out = [];
+    const batchSize = 4;
 
-    for (let offset = 0; offset < maxRows; offset += pageSize) {
-      const { data, error } = await sb.rpc(RPC_NAME, window.secureSearchArgs(filters, offset, pageSize));
-      if (error) throw error;
+    const first = await sb.rpc(
+      RPC_NAME,
+      window.secureSearchArgs(filters, 0, pageSize)
+    );
 
-      const rawRows = Array.isArray(data?.rows) ? data.rows : [];
-      out.push(...rawRows);
+    if (first.error) throw first.error;
 
-      if (rawRows.length < pageSize || out.length >= Number(data?.count || 0)) break;
+    const firstRows = Array.isArray(first.data?.rows)
+      ? first.data.rows
+      : [];
+
+    const total = Math.max(
+      firstRows.length,
+      Number(first.data?.count || 0)
+    );
+
+    const out = [...firstRows];
+
+    if (out.length >= total) {
+      return out.map(r => fromDbRecord(r, []));
     }
 
-    return out.slice(0, maxRows).map(r => fromDbRecord(r, []));
+    const offsets = [];
+    for (let offset = pageSize; offset < total; offset += pageSize) {
+      offsets.push(offset);
+    }
+
+    for (let i = 0; i < offsets.length; i += batchSize) {
+      const batch = offsets.slice(i, i + batchSize);
+
+      const results = await Promise.all(
+        batch.map(offset =>
+          sb.rpc(
+            RPC_NAME,
+            window.secureSearchArgs(filters, offset, pageSize)
+          )
+        )
+      );
+
+      for (const result of results) {
+        if (result.error) throw result.error;
+
+        const rawRows = Array.isArray(result.data?.rows)
+          ? result.data.rows
+          : [];
+
+        out.push(...rawRows);
+      }
+    }
+
+    // На случай, если данные изменились прямо во время экспорта,
+    // не возвращаем больше первоначально рассчитанного количества.
+    return out
+      .slice(0, total)
+      .map(r => fromDbRecord(r, []));
   };
 
   function regionCode() {
@@ -61,6 +115,7 @@
 
   function uniqueTypeNames(kind) {
     if (!['cat1', 'cat2'].includes(kind)) return [];
+
     const code = regionCode();
     let list = [];
 
@@ -76,7 +131,9 @@
       .map(x => typeof x === 'string' ? x : x?.name)
       .filter(Boolean);
 
-    return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'ru'));
+    return [...new Set(names)].sort(
+      (a, b) => a.localeCompare(b, 'ru')
+    );
   }
 
   function rebuildViolationSelect(select, kind, preserve = false) {
@@ -91,16 +148,28 @@
     }
 
     const names = uniqueTypeNames(kind);
+
     const allLabel = kind === 'cat1'
       ? 'Все нарушения 1 категории'
       : 'Все нарушения 2 категории';
 
     select.innerHTML = `
       <option value="">${allLabel}</option>
-      ${names.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}
+      ${names
+        .map(
+          name => `
+            <option value="${esc(name)}">
+              ${esc(name)}
+            </option>
+          `
+        )
+        .join('')}
     `;
 
-    if (old && names.includes(old)) select.value = old;
+    if (old && names.includes(old)) {
+      select.value = old;
+    }
+
     select.disabled = false;
     select.style.display = '';
   }
@@ -113,35 +182,72 @@
     const kind = document.getElementById('fKind');
     const manager = document.getElementById('fManager');
     const clear = document.getElementById('clearFilters');
+
     if (!q || !kind || !manager) return false;
 
     q.placeholder = 'Поиск: магазин, продавец...';
-    q.title = 'Поиск по магазину, продавцу, менеджеру и оператору';
+    q.title =
+      'Поиск по магазину, продавцу, менеджеру и оператору';
 
-    let violation = document.getElementById('fViolationType');
+    let violation =
+      document.getElementById('fViolationType');
+
     if (!violation) {
       violation = document.createElement('select');
       violation.id = 'fViolationType';
       violation.className = kind.className;
-      kind.insertAdjacentElement('afterend', violation);
 
-      kind.addEventListener('change', () => {
-        rebuildViolationSelect(violation, kind.value, false);
-      }, true);
+      kind.insertAdjacentElement(
+        'afterend',
+        violation
+      );
 
-      violation.addEventListener('change', () => {
-        // В renderRecords загрузка уже привязана к change менеджера.
-        // Посылаем безопасный change только чтобы переиспользовать текущую загрузку/пагинацию.
-        manager.dispatchEvent(new Event('change', { bubbles: true }));
-      });
+      kind.addEventListener(
+        'change',
+        () => {
+          rebuildViolationSelect(
+            violation,
+            kind.value,
+            false
+          );
+        },
+        true
+      );
 
-      clear?.addEventListener('click', () => {
-        violation.value = '';
-        rebuildViolationSelect(violation, '', false);
-      }, true);
+      violation.addEventListener(
+        'change',
+        () => {
+          // В renderRecords загрузка уже привязана к change менеджера.
+          // Переиспользуем существующую загрузку и пагинацию.
+          manager.dispatchEvent(
+            new Event(
+              'change',
+              { bubbles: true }
+            )
+          );
+        }
+      );
+
+      clear?.addEventListener(
+        'click',
+        () => {
+          violation.value = '';
+          rebuildViolationSelect(
+            violation,
+            '',
+            false
+          );
+        },
+        true
+      );
     }
 
-    rebuildViolationSelect(violation, kind.value, true);
+    rebuildViolationSelect(
+      violation,
+      kind.value,
+      true
+    );
+
     return true;
   }
 
@@ -151,24 +257,40 @@
 
     if (installFilters()) return;
 
-    const content = document.getElementById('content');
+    const content =
+      document.getElementById('content');
+
     if (!content) return;
 
-    installObserver = new MutationObserver(() => {
-      if (installFilters()) {
-        installObserver?.disconnect();
-        installObserver = null;
-      }
-    });
+    installObserver =
+      new MutationObserver(() => {
+        if (installFilters()) {
+          installObserver?.disconnect();
+          installObserver = null;
+        }
+      });
 
-    installObserver.observe(content, { childList: true, subtree: true });
+    installObserver.observe(
+      content,
+      {
+        childList: true,
+        subtree: true
+      }
+    );
   }
 
   const baseRenderRecords = window.renderRecords;
+
   if (typeof baseRenderRecords === 'function') {
     window.renderRecords = async function(...args) {
       watchUntilInstalled();
-      const result = await baseRenderRecords.apply(this, args);
+
+      const result =
+        await baseRenderRecords.apply(
+          this,
+          args
+        );
+
       installFilters();
       return result;
     };
