@@ -15,22 +15,10 @@
     'Согласуйте или отклоните заявки старших операторов.',
     'Удаление доступно только после согласования руководителем.',
     'После согласования заявка автоматически перейдёт Owner для окончательного удаления.',
-    'Цепочка: старший оператор → руководитель → Owner.',
-    'Файлы будут загружены напрямую в Backblaze после сохранения записи.',
-    'Распознать фабулу',
-    'При вставке попробуем определить Ф.И.О. и суммы.',
-    'Распознать фабулу При вставке попробуем определить Ф.И.О. и суммы.',
-    '1 · 1В · 1Л',
-    '1 • 1В • 1Л'
+    'Цепочка: старший оператор → руководитель → Owner.'
   ]);
 
   const REMOVE_PREFIXES = ['Быстрый ввод:'];
-
-  const CLEAR_PLACEHOLDER_PATTERNS = [
-    /^Вставь или напиши фабулу(?:\.{3}|…)?$/i,
-    /^Вставится из фабулы автоматически$/i,
-    /^Подставится по магазину$/i
-  ];
 
   const style = document.createElement('style');
   style.id = 'prizTerminologyStyles';
@@ -38,7 +26,22 @@
     #content #q:not([data-priz-wording-ready="1"]) {
       visibility: hidden !important;
     }
+
     .attendance-fast-hint {
+      display: none !important;
+    }
+
+    /* Убираем служебные подсказки формы без ожидания MutationObserver. */
+    #recordDialogBody .story-tools {
+      display: none !important;
+    }
+
+    #recordDialogBody .upload-box .file-hint {
+      display: none !important;
+    }
+
+    /* Убираем подпись "1 + 1В + 1Л" под колонкой "Смен". */
+    .attendance-table .att-summary-head small {
       display: none !important;
     }
   `;
@@ -52,14 +55,7 @@
     const text = normalizeText(value);
     if (!text) return false;
     if (REMOVE_EXACT.has(text)) return true;
-    if (REMOVE_PREFIXES.some(prefix => text.startsWith(prefix))) return true;
-    if (/^1\s*[·•]\s*1В\s*[·•]\s*1Л$/i.test(text)) return true;
-    return false;
-  }
-
-  function shouldClearPlaceholder(value) {
-    const text = normalizeText(value);
-    return CLEAR_PLACEHOLDER_PATTERNS.some(re => re.test(text));
+    return REMOVE_PREFIXES.some(prefix => text.startsWith(prefix));
   }
 
   function removeHelperElement(el) {
@@ -101,6 +97,32 @@
     input.dataset.prizWordingReady = '1';
   }
 
+  function cleanRecordFormHints(root) {
+    const scope = root?.querySelectorAll ? root : document;
+
+    scope.querySelectorAll?.('#recordDialogBody input[name="manager"]').forEach(el => {
+      if (el.placeholder) el.placeholder = '';
+      if (el.title === 'Менеджер подставляется автоматически') el.removeAttribute('title');
+    });
+
+    scope.querySelectorAll?.('#recordDialogBody input[name="employee"]').forEach(el => {
+      if (el.placeholder) el.placeholder = '';
+    });
+
+    scope.querySelectorAll?.('#recordDialogBody textarea[name="story"]').forEach(el => {
+      if (el.placeholder) el.placeholder = '';
+    });
+
+    // Физически удаляем строку распознавания фабулы.
+    scope.querySelectorAll?.('#recordDialogBody .story-tools').forEach(el => el.remove());
+
+    // Физически удаляем подпись про Backblaze.
+    scope.querySelectorAll?.('#recordDialogBody .upload-box .file-hint').forEach(el => el.remove());
+
+    // Убираем служебную подпись под "Смен".
+    scope.querySelectorAll?.('.attendance-table .att-summary-head small').forEach(el => el.remove());
+  }
+
   function isUiLabelText(trimmed) {
     return (
       trimmed === 'Автор' || trimmed === 'АВТОР' ||
@@ -139,6 +161,7 @@
 
   function processElement(el) {
     if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
+
     if (removeHelperElement(el)) return;
 
     prepareSearch(el);
@@ -147,12 +170,6 @@
       if (!el.hasAttribute(attr)) continue;
 
       const current = el.getAttribute(attr) || '';
-
-      if (attr === 'placeholder' && shouldClearPlaceholder(current)) {
-        el.setAttribute(attr, '');
-        continue;
-      }
-
       let next = replaceUiText(current);
 
       if (attr === 'placeholder') {
@@ -163,6 +180,8 @@
 
       if (next !== current) el.setAttribute(attr, next);
     }
+
+    cleanRecordFormHints(el);
 
     const descendants = Array.from(el.querySelectorAll('*'));
     for (const child of descendants) {
@@ -189,6 +208,7 @@
     }
 
     processElement(root);
+    cleanRecordFormHints(document);
   }
 
   function start() {
@@ -208,6 +228,8 @@
 
         for (const node of mutation.addedNodes) apply(node);
       }
+
+      cleanRecordFormHints(document);
     });
 
     observer.observe(document.body, {
