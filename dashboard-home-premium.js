@@ -55,21 +55,20 @@
     const kind = String(card.dataset.kind || '');
     if (!ICONS[kind]) return;
 
-    // Ставим флаг ДО любых DOM-изменений.
+    // Flag first: this module never reprocesses its own DOM changes.
     card.dataset.prizPremiumHome = '1';
     card.classList.add('priz-premium-quick-card', `priz-premium-${kind}`);
 
-    const icon = card.querySelector('.quick-icon');
-    const title = card.querySelector('.quick-title');
-    const desc = card.querySelector('.quick-desc');
+    const icon = card.querySelector(':scope > .quick-icon') || card.querySelector('.quick-icon');
+    const title = card.querySelector(':scope > .quick-title') || card.querySelector('.quick-title');
+    const desc = card.querySelector(':scope > .quick-desc') || card.querySelector('.quick-desc');
 
     if (icon) {
       icon.innerHTML = ICONS[kind];
       icon.setAttribute('aria-hidden', 'true');
     }
 
-    // Оборачиваем текст, не трогая саму карточку и её onclick.
-    if (title && desc && !card.querySelector('.priz-quick-copy')) {
+    if (title && desc && !card.querySelector(':scope > .priz-quick-copy')) {
       const copy = document.createElement('div');
       copy.className = 'priz-quick-copy';
 
@@ -78,7 +77,7 @@
       copy.appendChild(desc);
     }
 
-    if (!card.querySelector('.priz-quick-arrow')) {
+    if (!card.querySelector(':scope > .priz-quick-arrow')) {
       const arrow = document.createElement('span');
       arrow.className = 'priz-quick-arrow';
       arrow.innerHTML = ARROW;
@@ -87,23 +86,37 @@
     }
   }
 
-  function decorateCards(root = document) {
-    if (root.matches?.('.quick-card[data-kind]')) {
-      decorateCard(root);
-    }
+  function decorateGrid(grid) {
+    if (!(grid instanceof HTMLElement)) return;
+    if (!grid.classList.contains('quick-grid')) return;
 
-    root.querySelectorAll?.('.quick-card[data-kind]').forEach(decorateCard);
-  }
+    grid.querySelectorAll('.quick-card[data-kind]').forEach(decorateCard);
 
-  function decorateQuickPanel() {
-    const grid = document.querySelector('.quick-grid');
-    const panel = grid?.closest('.panel');
+    const panel = grid.closest('.panel');
     if (!panel) return;
 
     panel.classList.add('priz-premium-quick-panel');
 
-    const head = panel.querySelector('.panel-head');
+    const head = panel.querySelector(':scope > .panel-head') || panel.querySelector('.panel-head');
     if (head) head.classList.add('priz-premium-quick-head');
+  }
+
+  function scan(root = document) {
+    if (!root) return;
+
+    if (root.matches?.('.quick-grid')) decorateGrid(root);
+    if (root.matches?.('.quick-card[data-kind]')) {
+      decorateCard(root);
+      const grid = root.closest('.quick-grid');
+      if (grid) decorateGrid(grid);
+    }
+
+    root.querySelectorAll?.('.quick-grid').forEach(decorateGrid);
+    root.querySelectorAll?.('.quick-card[data-kind]').forEach(card => {
+      decorateCard(card);
+      const grid = card.closest('.quick-grid');
+      if (grid) decorateGrid(grid);
+    });
   }
 
   function injectStyles() {
@@ -113,10 +126,6 @@
     style.id = 'prizDashboardHomePremiumStyles';
 
     style.textContent = `
-      /* =========================
-         PRIZ CONTROL · PREMIUM HOME
-         ========================= */
-
       .priz-premium-quick-panel {
         padding: 0 !important;
         margin-top: 22px !important;
@@ -138,7 +147,7 @@
       }
 
       .priz-premium-quick-panel .quick-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        grid-template-columns: repeat(3,minmax(0,1fr)) !important;
         gap: 14px !important;
       }
 
@@ -146,22 +155,18 @@
         position: relative;
         min-height: 142px;
         display: grid !important;
-        grid-template-columns: 66px minmax(0, 1fr) 44px;
+        grid-template-columns: 66px minmax(0,1fr) 44px;
         align-items: center;
         gap: 18px;
         padding: 20px 20px 20px 21px !important;
-
         border-radius: 17px !important;
         border: 1px solid rgba(105,112,132,.20) !important;
-
         background:
-          radial-gradient(circle at 12% 50%, rgba(99,58,177,.085), transparent 31%),
-          linear-gradient(180deg, rgba(23,26,34,.99), rgba(18,21,28,.99)) !important;
-
+          radial-gradient(circle at 12% 50%,rgba(99,58,177,.085),transparent 31%),
+          linear-gradient(180deg,rgba(23,26,34,.99),rgba(18,21,28,.99)) !important;
         box-shadow:
           inset 0 1px 0 rgba(255,255,255,.018),
           0 14px 38px rgba(0,0,0,.13);
-
         overflow: hidden;
         isolation: isolate;
         transition:
@@ -192,11 +197,9 @@
       .priz-premium-quick-panel .quick-card:hover {
         transform: translateY(-2px) !important;
         border-color: rgba(139,92,246,.50) !important;
-
         background:
-          radial-gradient(circle at 13% 50%, rgba(111,66,198,.15), transparent 34%),
-          linear-gradient(180deg, rgba(25,28,38,.995), rgba(19,22,30,.995)) !important;
-
+          radial-gradient(circle at 13% 50%,rgba(111,66,198,.15),transparent 34%),
+          linear-gradient(180deg,rgba(25,28,38,.995),rgba(19,22,30,.995)) !important;
         box-shadow:
           inset 0 1px 0 rgba(255,255,255,.025),
           0 16px 42px rgba(0,0,0,.18),
@@ -219,22 +222,16 @@
         place-items: center;
         margin: 0 !important;
         border-radius: 18px;
-
         color: #c9b9ff;
-
         background:
-          radial-gradient(circle at 35% 25%, rgba(176,145,255,.18), transparent 38%),
-          linear-gradient(145deg, rgba(83,50,151,.58), rgba(41,30,70,.55));
-
+          radial-gradient(circle at 35% 25%,rgba(176,145,255,.18),transparent 38%),
+          linear-gradient(145deg,rgba(83,50,151,.58),rgba(41,30,70,.55));
         border: 1px solid rgba(161,122,255,.33);
-
         box-shadow:
           inset 0 1px 0 rgba(255,255,255,.07),
           0 10px 25px rgba(0,0,0,.12),
           0 0 22px rgba(124,58,237,.11);
-
         font-size: 0 !important;
-
         transition:
           color .17s ease,
           border-color .17s ease,
@@ -288,17 +285,12 @@
         place-items: center;
         justify-self: end;
         border-radius: 50%;
-
         color: #d5cdf9;
-
         background:
-          linear-gradient(145deg, rgba(35,33,57,.92), rgba(24,25,37,.94));
-
+          linear-gradient(145deg,rgba(35,33,57,.92),rgba(24,25,37,.94));
         border: 1px solid rgba(135,105,215,.30);
-
         box-shadow:
           inset 0 1px 0 rgba(255,255,255,.035);
-
         transition:
           color .17s ease,
           border-color .17s ease,
@@ -315,12 +307,9 @@
       .priz-premium-quick-panel .quick-card:hover .priz-quick-arrow {
         color: #fff;
         border-color: rgba(161,123,255,.52);
-
         background:
-          linear-gradient(145deg, rgba(77,48,132,.72), rgba(38,31,62,.85));
-
+          linear-gradient(145deg,rgba(77,48,132,.72),rgba(38,31,62,.85));
         transform: translateX(2px);
-
         box-shadow:
           inset 0 1px 0 rgba(255,255,255,.05),
           0 0 20px rgba(124,58,237,.10);
@@ -342,9 +331,9 @@
         cursor: default;
       }
 
-      @media (max-width: 1180px) {
+      @media (max-width:1180px) {
         .priz-premium-quick-panel .quick-card {
-          grid-template-columns: 58px minmax(0, 1fr) 38px;
+          grid-template-columns: 58px minmax(0,1fr) 38px;
           gap: 14px;
           min-height: 130px;
           padding: 17px !important;
@@ -367,15 +356,15 @@
         }
       }
 
-      @media (max-width: 900px) {
+      @media (max-width:900px) {
         .priz-premium-quick-panel .quick-grid {
           grid-template-columns: 1fr !important;
         }
       }
 
-      @media (max-width: 520px) {
+      @media (max-width:520px) {
         .priz-premium-quick-panel .quick-card {
-          grid-template-columns: 52px minmax(0, 1fr) 36px;
+          grid-template-columns: 52px minmax(0,1fr) 36px;
           gap: 12px;
           min-height: 116px;
           padding: 15px !important;
@@ -405,40 +394,34 @@
     document.head.appendChild(style);
   }
 
-  function scan(root = document) {
-    decorateCards(root);
-    decorateQuickPanel();
-  }
-
   injectStyles();
-  scan();
 
-  const content = document.getElementById('content');
+  // Initial screen / cached screens already present at module load.
+  scan(document);
 
-  if (content) {
-    const observer = new MutationObserver(mutations => {
-      let needPanelRefresh = false;
+  /*
+   * IMPORTANT FIX:
+   * navigation-stability v6 replaces the temporary #content slot.
+   * #prizPageHost is permanent, so we observe it instead.
+   */
+  const host =
+    document.getElementById('prizPageHost') ||
+    document.querySelector('[data-priz-page-host="1"]') ||
+    document.querySelector('.main');
 
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          if (node.nodeType !== 1) continue;
-          decorateCards(node);
+  if (!host) return;
 
-          if (
-            node.matches?.('.quick-grid,.panel') ||
-            node.querySelector?.('.quick-grid')
-          ) {
-            needPanelRefresh = true;
-          }
-        }
+  const observer = new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        scan(node);
       }
+    }
+  });
 
-      if (needPanelRefresh) decorateQuickPanel();
-    });
-
-    observer.observe(content, {
-      childList: true,
-      subtree: true
-    });
-  }
+  observer.observe(host, {
+    childList: true,
+    subtree: true
+  });
 })();
