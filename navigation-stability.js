@@ -1,11 +1,8 @@
 (() => {
-  // Защита PRIZ Control от одновременной перерисовки нескольких вкладок.
-  // Быстрые клики объединяются: текущая загрузка спокойно заканчивается,
-  // после чего отрисовывается только последняя выбранная страница/регион.
-  //
-  // Дополнительно убираем визуальное мелькание интерфейса: если на экране уже
-  // есть готовый контент, промежуточная строка «Загрузка…» не заменяет его.
-  // Старый экран остаётся видимым до тех пор, пока новый не будет полностью готов.
+  // PRIZ Control — плавная навигация без мерцания.
+  // Пока новая страница загружается, пользователь продолжает видеть
+  // предыдущую полностью готовую страницу. После завершения загрузки
+  // старый снимок мягко убирается.
 
   if (window.__prizNavigationStabilityInstalled) return;
   window.__prizNavigationStabilityInstalled = true;
@@ -38,50 +35,102 @@
     }
   }
 
-  async function renderWithoutFlash(context, args) {
+  function removeIds(root) {
+    if (!root) return;
+    if (root.id) root.removeAttribute('id');
+    root.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+  }
+
+  function createTransitionCover() {
     const content = document.getElementById('content');
+    const app = document.getElementById('appView');
 
-    // На самом первом открытии страницы обычный индикатор загрузки полезен.
-    // Подавляем его только тогда, когда на экране уже есть готовая страница.
-    const keepVisible = !!(
-      content &&
-      content.childNodes.length &&
-      !content.querySelector('.loading-line')
-    );
+    if (!content || !app || app.classList.contains('hidden')) return null;
+    if (!content.childNodes.length) return null;
 
-    if (!keepVisible || typeof Element === 'undefined') {
-      return await baseRenderPage.apply(context, args);
+    // На первом экране загрузки ничего не маскируем.
+    const onlyLoading =
+      content.children.length === 1 &&
+      content.firstElementChild?.classList.contains('loading-line');
+
+    if (onlyLoading) return null;
+
+    const rect = content.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return null;
+
+    const cover = content.cloneNode(true);
+    removeIds(cover);
+
+    cover.id = 'prizNavigationTransitionCover';
+    cover.setAttribute('aria-hidden', 'true');
+    cover.inert = true;
+
+    const contentStyle = getComputedStyle(content);
+    const parentStyle = content.parentElement
+      ? getComputedStyle(content.parentElement)
+      : null;
+
+    let background = contentStyle.backgroundColor;
+    if (!background || background === 'rgba(0, 0, 0, 0)' || background === 'transparent') {
+      background = parentStyle?.backgroundColor || '#090a0f';
     }
 
-    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
-    if (!descriptor?.get || !descriptor?.set) {
-      return await baseRenderPage.apply(context, args);
-    }
+    Object.assign(cover.style, {
+      position: 'fixed',
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
+      width: `${rect.width}px`,
+      height: `${Math.max(rect.height, window.innerHeight - Math.max(0, rect.top))}px`,
+      margin: '0',
+      boxSizing: 'border-box',
+      overflow: 'hidden',
+      pointerEvents: 'none',
+      userSelect: 'none',
+      zIndex: '9990',
+      background,
+      opacity: '1',
+      transition: 'opacity 90ms ease'
+    });
 
-    let patched = false;
+    // Клонированные sticky/fixed элементы не должны вылезать из снимка.
+    cover.querySelectorAll('*').forEach(el => {
+      const p = getComputedStyle(el).position;
+      if (p === 'fixed') el.style.position = 'absolute';
+    });
+
+    document.body.appendChild(cover);
+    return cover;
+  }
+
+  function removeTransitionCover(cover) {
+    if (!cover?.isConnected) return;
+
+    requestAnimationFrame(() => {
+      cover.style.opacity = '0';
+      setTimeout(() => {
+        if (cover.isConnected) cover.remove();
+      }, 100);
+    });
+  }
+
+  async function renderSmoothly(context, args) {
+    const oldCover = document.getElementById('prizNavigationTransitionCover');
+    if (oldCover) oldCover.remove();
+
+    const cover = createTransitionCover();
 
     try {
-      Object.defineProperty(content, 'innerHTML', {
-        configurable: true,
-        enumerable: false,
-        get() {
-          return descriptor.get.call(this);
-        },
-        set(value) {
-          // Это именно промежуточный экран из renderPage().
-          // Остальные обновления DOM, включая реальные данные и ошибки,
-          // проходят как обычно.
-          if (String(value) === '<div class="loading-line">Загрузка…</div>') return;
-          descriptor.set.call(this, value);
-        }
-      });
-      patched = true;
+      await baseRenderPage.apply(context, args);
 
-      return await baseRenderPage.apply(context, args);
+      // Даём браузеру один кадр на отрисовку полностью готового DOM,
+      // и только затем открываем новую страницу.
+      await new Promise(resolve =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(resolve)
+        )
+      );
     } finally {
-      if (patched) {
-        try { delete content.innerHTML; } catch (_) {}
-      }
+      removeTransitionCover(cover);
     }
   }
 
@@ -99,11 +148,11 @@
         const before = snapshot();
 
         try {
-          await renderWithoutFlash(context, args);
+          await renderSmoothly(context, args);
         } catch (err) {
-          // Если во время загрузки пользователь уже ушёл на другую вкладку,
-          // ошибка старой страницы не должна ломать новую.
           const afterError = snapshot();
+
+          // Ошибка устаревшего перехода не должна ломать последнюю вкладку.
           if (runNo === requestNo && sameSnapshot(before, afterError)) {
             finalError = err;
             console.error(err);
@@ -113,6 +162,7 @@
         }
 
         const after = snapshot();
+
         if (runNo !== requestNo || !sameSnapshot(before, after)) {
           pending = true;
           finalError = null;
@@ -122,7 +172,6 @@
       running = false;
       settleWaiters(finalError);
 
-      // На случай клика ровно между последней проверкой и finally.
       if (pending) queueMicrotask(() => drain(context, args));
     }
   }
@@ -139,7 +188,6 @@
     return promise;
   };
 
-  // Классические script-файлы PRIZ Control используют глобальную переменную renderPage.
   window.renderPage = stableRenderPage;
   try { renderPage = stableRenderPage; } catch (_) {}
 })();
