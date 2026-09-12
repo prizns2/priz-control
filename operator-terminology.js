@@ -15,16 +15,32 @@
     'Согласуйте или отклоните заявки старших операторов.',
     'Удаление доступно только после согласования руководителем.',
     'После согласования заявка автоматически перейдёт Owner для окончательного удаления.',
-    'Цепочка: старший оператор → руководитель → Owner.'
+    'Цепочка: старший оператор → руководитель → Owner.',
+    'Файлы будут загружены напрямую в Backblaze после сохранения записи.',
+    'Распознать фабулу',
+    'При вставке попробуем определить Ф.И.О. и суммы.',
+    'Распознать фабулу При вставке попробуем определить Ф.И.О. и суммы.',
+    '1 · 1В · 1Л',
+    '1 • 1В • 1Л'
   ]);
 
   const REMOVE_PREFIXES = ['Быстрый ввод:'];
 
+  const CLEAR_PLACEHOLDER_PATTERNS = [
+    /^Вставь или напиши фабулу(?:\.{3}|…)?$/i,
+    /^Вставится из фабулы автоматически$/i,
+    /^Подставится по магазину$/i
+  ];
+
   const style = document.createElement('style');
   style.id = 'prizTerminologyStyles';
   style.textContent = `
-    #content #q:not([data-priz-wording-ready="1"]) { visibility: hidden !important; }
-    .attendance-fast-hint { display: none !important; }
+    #content #q:not([data-priz-wording-ready="1"]) {
+      visibility: hidden !important;
+    }
+    .attendance-fast-hint {
+      display: none !important;
+    }
   `;
   document.head.appendChild(style);
 
@@ -36,7 +52,14 @@
     const text = normalizeText(value);
     if (!text) return false;
     if (REMOVE_EXACT.has(text)) return true;
-    return REMOVE_PREFIXES.some(prefix => text.startsWith(prefix));
+    if (REMOVE_PREFIXES.some(prefix => text.startsWith(prefix))) return true;
+    if (/^1\s*[·•]\s*1В\s*[·•]\s*1Л$/i.test(text)) return true;
+    return false;
+  }
+
+  function shouldClearPlaceholder(value) {
+    const text = normalizeText(value);
+    return CLEAR_PLACEHOLDER_PATTERNS.some(re => re.test(text));
   }
 
   function removeHelperElement(el) {
@@ -122,20 +145,29 @@
 
     for (const attr of ['placeholder', 'title', 'aria-label']) {
       if (!el.hasAttribute(attr)) continue;
+
       const current = el.getAttribute(attr) || '';
+
+      if (attr === 'placeholder' && shouldClearPlaceholder(current)) {
+        el.setAttribute(attr, '');
+        continue;
+      }
+
       let next = replaceUiText(current);
+
       if (attr === 'placeholder') {
         next = next
           .replace(/Поиск:\s*магазин,\s*фабула,?\s*продавец/gi, 'Поиск: магазин, продавец')
           .replace(/магазин,\s*фабула/gi, 'магазин');
       }
+
       if (next !== current) el.setAttribute(attr, next);
     }
 
     const descendants = Array.from(el.querySelectorAll('*'));
     for (const child of descendants) {
       if (!document.body.contains(child)) continue;
-      if (removeHelperElement(child)) continue;
+      removeHelperElement(child);
     }
 
     if (!document.body.contains(el)) return;
@@ -150,10 +182,12 @@
 
   function apply(root = document.body) {
     if (!root) return;
+
     if (root.nodeType === Node.TEXT_NODE) {
       processTextNode(root);
       return;
     }
+
     processElement(root);
   }
 
@@ -166,10 +200,12 @@
           processTextNode(mutation.target);
           continue;
         }
+
         if (mutation.type === 'attributes') {
           processElement(mutation.target);
           continue;
         }
+
         for (const node of mutation.addedNodes) apply(node);
       }
     });
