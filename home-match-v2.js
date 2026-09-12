@@ -238,14 +238,16 @@
       (typeof currentPage !== 'undefined' && currentPage === 'dashboard') ||
       /главная/i.test(title.textContent || '');
 
-    sub.textContent = 'Добро пожаловать в PRIZ Control';
+    // SAFE: do not rewrite identical text from an observer callback.
+    const wantedSubtitle = 'Добро пожаловать в PRIZ Control';
+    if (sub.textContent !== wantedSubtitle) sub.textContent = wantedSubtitle;
     sub.classList.toggle('hidden', !isDashboard);
     top.classList.toggle('hm-topbar-dashboard', isDashboard);
   }
 
   function decorateUserCard() {
     const card = document.getElementById('userCard');
-    if (!card || card.dataset.homeMatchV2 === 'user') return;
+    if (!card) return;
     card.dataset.homeMatchV2 = 'user';
     card.classList.add('hm-user-card');
 
@@ -985,14 +987,18 @@
     observer.observe(host, { childList: true, subtree: true });
   }
 
-  // Topbar and user card are outside page slots and can be updated by shell/login logic.
-  const shellObserver = new MutationObserver(() => {
-    syncTopbar();
-    decorateUserCard();
-  });
-
-  const topbar = document.querySelector('.topbar');
+  // SAFE shell handling. Do NOT observe topbar: syncTopbar itself may
+  // change that DOM. Page-slot changes already call syncTopbar after
+  // navigation and region switches.
+  //
+  // userCard may be replaced after login/operator switching, so watch only
+  // its direct children. Adding the avatar triggers one more callback, which
+  // immediately stops because the avatar already exists.
   const userCard = document.getElementById('userCard');
-  if (topbar) shellObserver.observe(topbar, { childList: true, subtree: true, characterData: true });
-  if (userCard) shellObserver.observe(userCard, { childList: true, subtree: true });
+  if (userCard) {
+    const userObserver = new MutationObserver(() => {
+      if (!userCard.querySelector('.hm-user-avatar')) decorateUserCard();
+    });
+    userObserver.observe(userCard, { childList: true, subtree: false });
+  }
 })();
