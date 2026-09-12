@@ -1,7 +1,11 @@
 (() => {
   // Защита PRIZ Control от одновременной перерисовки нескольких вкладок.
-  // Быстрые клики теперь объединяются: текущая загрузка спокойно заканчивается,
+  // Быстрые клики объединяются: текущая загрузка спокойно заканчивается,
   // после чего отрисовывается только последняя выбранная страница/регион.
+  //
+  // Дополнительно убираем визуальное мелькание интерфейса: если на экране уже
+  // есть готовый контент, промежуточная строка «Загрузка…» не заменяет его.
+  // Старый экран остаётся видимым до тех пор, пока новый не будет полностью готов.
 
   if (window.__prizNavigationStabilityInstalled) return;
   window.__prizNavigationStabilityInstalled = true;
@@ -34,6 +38,53 @@
     }
   }
 
+  async function renderWithoutFlash(context, args) {
+    const content = document.getElementById('content');
+
+    // На самом первом открытии страницы обычный индикатор загрузки полезен.
+    // Подавляем его только тогда, когда на экране уже есть готовая страница.
+    const keepVisible = !!(
+      content &&
+      content.childNodes.length &&
+      !content.querySelector('.loading-line')
+    );
+
+    if (!keepVisible || typeof Element === 'undefined') {
+      return await baseRenderPage.apply(context, args);
+    }
+
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+    if (!descriptor?.get || !descriptor?.set) {
+      return await baseRenderPage.apply(context, args);
+    }
+
+    let patched = false;
+
+    try {
+      Object.defineProperty(content, 'innerHTML', {
+        configurable: true,
+        enumerable: false,
+        get() {
+          return descriptor.get.call(this);
+        },
+        set(value) {
+          // Это именно промежуточный экран из renderPage().
+          // Остальные обновления DOM, включая реальные данные и ошибки,
+          // проходят как обычно.
+          if (String(value) === '<div class="loading-line">Загрузка…</div>') return;
+          descriptor.set.call(this, value);
+        }
+      });
+      patched = true;
+
+      return await baseRenderPage.apply(context, args);
+    } finally {
+      if (patched) {
+        try { delete content.innerHTML; } catch (_) {}
+      }
+    }
+  }
+
   async function drain(context, args) {
     if (running) return;
     running = true;
@@ -48,7 +99,7 @@
         const before = snapshot();
 
         try {
-          await baseRenderPage.apply(context, args);
+          await renderWithoutFlash(context, args);
         } catch (err) {
           // Если во время загрузки пользователь уже ушёл на другую вкладку,
           // ошибка старой страницы не должна ломать новую.
