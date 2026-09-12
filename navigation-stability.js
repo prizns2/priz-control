@@ -1,8 +1,9 @@
 (() => {
-  // PRIZ Control — стабильная навигация без пустых кадров.
-  // Новая страница полностью отрисовывается скрыто, пока пользователь
-  // продолжает видеть предыдущую готовую страницу. После завершения
-  // загрузки содержимое меняется одним кадром.
+  // PRIZ Control — navigation architecture v4.
+  // 1) Native View Transitions: old screen stays visible until the new one is fully ready.
+  // 2) Live DOM page cache: revisiting a page restores the real nodes + event handlers instantly.
+  // 3) Fast-click coalescing: intermediate pages are never shown.
+  // No cloned overlays, no duplicate IDs, no fake screenshots.
 
   if (window.__prizNavigationStabilityInstalled) return;
   window.__prizNavigationStabilityInstalled = true;
@@ -10,250 +11,269 @@
   const baseRenderPage = window.renderPage;
   if (typeof baseRenderPage !== 'function') return;
 
-  let running = false;
-  let pending = false;
-  let requestNo = 0;
-  let waiters = [];
+  const PAGE_CACHE_TTL = 120_000;
+  const PAGE_CACHE_MAX = 12;
+  const pageCache = new Map();
 
-  function routeSnapshot() {
-    return {
-      page: typeof currentPage !== 'undefined' ? currentPage : null,
-      region: document.getElementById('regionSelect')?.value || null
-    };
-  }
+  let visibleKey = null;
+  let visibleRenderedAt = 0;
+  let requestedSeq = 0;
+  let runningPromise = null;
+  let progressTimer = null;
 
-  function sameRoute(a, b) {
-    return a?.page === b?.page && a?.region === b?.region;
-  }
-
-  function settleWaiters(error = null) {
-    const list = waiters;
-    waiters = [];
-    for (const item of list) {
-      if (error) item.reject(error);
-      else item.resolve();
-    }
-  }
-
-  function ensureProgressBar() {
-    let bar = document.getElementById('prizRouteProgress');
-    if (bar) return bar;
-
+  function injectStyles() {
+    if (document.getElementById('prizNavigationV4Styles')) return;
     const style = document.createElement('style');
-    style.id = 'prizRouteProgressStyles';
+    style.id = 'prizNavigationV4Styles';
     style.textContent = `
-      #prizRouteProgress{
-        position:fixed;
-        left:0;
-        top:0;
-        width:100%;
-        height:2px;
-        z-index:12000;
-        pointer-events:none;
-        opacity:0;
-        overflow:hidden;
+      #content { view-transition-name: priz-content; }
+
+      ::view-transition-old(root),
+      ::view-transition-new(root) {
+        animation: none !important;
       }
-      #prizRouteProgress::before{
-        content:"";
-        display:block;
-        width:100%;
-        height:100%;
-        transform:scaleX(0);
-        transform-origin:left center;
-        background:linear-gradient(90deg,#6d4aff,#9b7cff,#6d4aff);
-        box-shadow:0 0 12px rgba(139,92,246,.55);
+
+      ::view-transition-old(priz-content) {
+        animation: priz-nav-out 70ms ease-out both;
       }
-      #prizRouteProgress.loading,
-      #prizRouteProgress.done{
-        opacity:1;
+
+      ::view-transition-new(priz-content) {
+        animation: priz-nav-in 90ms ease-out both;
       }
-      #prizRouteProgress.loading::before{
-        animation:prizRouteProgress 1.05s cubic-bezier(.2,.7,.2,1) infinite;
+
+      @keyframes priz-nav-out {
+        from { opacity: 1; }
+        to   { opacity: .985; }
       }
-      #prizRouteProgress.done::before{
-        animation:none;
-        transform:scaleX(1);
-        transition:transform .12s ease;
+
+      @keyframes priz-nav-in {
+        from { opacity: .985; }
+        to   { opacity: 1; }
       }
-      @keyframes prizRouteProgress{
-        0%{transform:translateX(-70%) scaleX(.28)}
-        55%{transform:translateX(8%) scaleX(.62)}
-        100%{transform:translateX(100%) scaleX(.18)}
+
+      #prizNavProgress {
+        position: fixed;
+        z-index: 2147483000;
+        left: 0;
+        top: 0;
+        height: 2px;
+        width: 100%;
+        pointer-events: none;
+        opacity: 0;
+        transform: scaleX(.08);
+        transform-origin: left center;
+        background: currentColor;
+        color: #8b5cf6;
+        transition: opacity 100ms ease, transform 900ms cubic-bezier(.2,.8,.2,1);
       }
-      @media (prefers-reduced-motion: reduce){
-        #prizRouteProgress.loading::before{animation:none;transform:scaleX(.72)}
+
+      #prizNavProgress.show {
+        opacity: .9;
+        transform: scaleX(.78);
+      }
+
+      #prizNavProgress.done {
+        opacity: 0;
+        transform: scaleX(1);
+        transition: opacity 160ms ease, transform 120ms ease;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        ::view-transition-old(priz-content),
+        ::view-transition-new(priz-content) { animation: none !important; }
+        #prizNavProgress { transition: none !important; }
       }
     `;
     document.head.appendChild(style);
 
-    bar = document.createElement('div');
-    bar.id = 'prizRouteProgress';
+    const bar = document.createElement('div');
+    bar.id = 'prizNavProgress';
     bar.setAttribute('aria-hidden', 'true');
     document.body.appendChild(bar);
-    return bar;
   }
 
-  function startProgress() {
-    const bar = ensureProgressBar();
-    bar.style.opacity = '';
-    bar.classList.remove('done');
-    bar.classList.add('loading');
+  injectStyles();
+
+  function progressStart() {
+    const bar = document.getElementById('prizNavProgress');
+    if (!bar) return;
+    clearTimeout(progressTimer);
+    bar.classList.remove('show', 'done');
+    progressTimer = setTimeout(() => bar.classList.add('show'), 120);
   }
 
-  function finishProgress() {
-    const bar = ensureProgressBar();
-    bar.classList.remove('loading');
+  function progressEnd() {
+    const bar = document.getElementById('prizNavProgress');
+    if (!bar) return;
+    clearTimeout(progressTimer);
+    if (!bar.classList.contains('show')) return;
+    bar.classList.remove('show');
     bar.classList.add('done');
-    setTimeout(() => {
-      bar.classList.remove('done');
-      bar.style.opacity = '0';
-    }, 140);
+    setTimeout(() => bar.classList.remove('done'), 180);
   }
 
-  function isOnlyLoading(content) {
-    return (
-      content?.children?.length === 1 &&
-      content.firstElementChild?.classList?.contains('loading-line')
-    );
+  function regionValue() {
+    return document.getElementById('regionSelect')?.value || 'all';
   }
 
-  function syncScrollPositions(source, clone) {
-    try {
-      clone.scrollTop = source.scrollTop;
-      clone.scrollLeft = source.scrollLeft;
+  function targetKey() {
+    const page = typeof currentPage !== 'undefined' ? currentPage : 'dashboard';
+    return `${page}|${regionValue()}`;
+  }
 
-      const sourceNodes = source.querySelectorAll('*');
-      const cloneNodes = clone.querySelectorAll('*');
-      const count = Math.min(sourceNodes.length, cloneNodes.length);
+  function pageNameFromKey(key) {
+    return String(key || '').split('|', 1)[0] || '';
+  }
 
-      for (let i = 0; i < count; i++) {
-        if (sourceNodes[i].scrollTop || sourceNodes[i].scrollLeft) {
-          cloneNodes[i].scrollTop = sourceNodes[i].scrollTop;
-          cloneNodes[i].scrollLeft = sourceNodes[i].scrollLeft;
+  function captureScroll(root) {
+    const main = document.querySelector('.main');
+    const scrollers = [...(root?.querySelectorAll('.table-wrap,.attendance-table-wrap,[data-priz-keep-scroll]') || [])]
+      .map(el => ({ top: el.scrollTop, left: el.scrollLeft }));
+    return {
+      windowY: window.scrollY,
+      mainTop: main?.scrollTop || 0,
+      scrollers
+    };
+  }
+
+  function restoreScroll(root, state) {
+    if (!state) return;
+    const main = document.querySelector('.main');
+    if (main) main.scrollTop = state.mainTop || 0;
+    const list = [...(root?.querySelectorAll('.table-wrap,.attendance-table-wrap,[data-priz-keep-scroll]') || [])];
+    list.forEach((el, i) => {
+      const saved = state.scrollers?.[i];
+      if (!saved) return;
+      el.scrollTop = saved.top || 0;
+      el.scrollLeft = saved.left || 0;
+    });
+    if (state.windowY) window.scrollTo({ top: state.windowY, behavior: 'instant' });
+  }
+
+  function pruneCache() {
+    while (pageCache.size > PAGE_CACHE_MAX) {
+      const first = pageCache.keys().next().value;
+      if (first === undefined) break;
+      pageCache.delete(first);
+    }
+  }
+
+  function stashVisible() {
+    const content = document.getElementById('content');
+    if (!content || !visibleKey || !content.childNodes.length) return;
+
+    const fragment = document.createDocumentFragment();
+    while (content.firstChild) fragment.appendChild(content.firstChild);
+
+    pageCache.delete(visibleKey);
+    pageCache.set(visibleKey, {
+      fragment,
+      renderedAt: visibleRenderedAt || Date.now(),
+      title: document.getElementById('pageTitle')?.textContent || '',
+      eyebrow: document.getElementById('pageEyebrow')?.textContent || '',
+      scroll: captureScroll(fragment)
+    });
+    pruneCache();
+  }
+
+  function takeCached(key) {
+    const entry = pageCache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.renderedAt > PAGE_CACHE_TTL) {
+      pageCache.delete(key);
+      return null;
+    }
+    pageCache.delete(key);
+    return entry;
+  }
+
+  function restoreCached(key, entry) {
+    const content = document.getElementById('content');
+    if (!content || !entry) return false;
+
+    content.replaceChildren(entry.fragment);
+    const title = document.getElementById('pageTitle');
+    const eyebrow = document.getElementById('pageEyebrow');
+    if (title && entry.title) title.textContent = entry.title;
+    if (eyebrow && entry.eyebrow) eyebrow.textContent = entry.eyebrow;
+
+    visibleKey = key;
+    visibleRenderedAt = entry.renderedAt;
+    requestAnimationFrame(() => restoreScroll(content, entry.scroll));
+    return true;
+  }
+
+  async function renderLatestInsideTransition(args) {
+    let completedSeq = -1;
+
+    while (completedSeq !== requestedSeq) {
+      completedSeq = requestedSeq;
+      const key = targetKey();
+
+      if (visibleKey !== key) {
+        stashVisible();
+        const cached = takeCached(key);
+        if (cached) {
+          restoreCached(key, cached);
+          continue;
         }
       }
-    } catch (_) {}
-  }
 
-  function beginHiddenRender() {
-    const content = document.getElementById('content');
-    const app = document.getElementById('appView');
-
-    if (!content || !app || app.classList.contains('hidden')) {
-      return { content: null, snapshot: null, oldDisplay: '' };
-    }
-
-    if (!content.childNodes.length || isOnlyLoading(content)) {
-      return { content, snapshot: null, oldDisplay: content.style.display };
-    }
-
-    const snapshot = content.cloneNode(true);
-    snapshot.removeAttribute('id');
-    snapshot.id = 'prizRouteSnapshot';
-    snapshot.setAttribute('aria-hidden', 'true');
-    snapshot.inert = true;
-    snapshot.style.pointerEvents = 'none';
-    snapshot.style.userSelect = 'none';
-
-    // Вставляем снимок ПОСЛЕ оригинала. Оригинал остаётся первым в DOM,
-    // поэтому все querySelector/getElementById во время скрытой отрисовки
-    // продолжают работать с настоящей новой страницей, а не со снимком.
-    content.insertAdjacentElement('afterend', snapshot);
-    syncScrollPositions(content, snapshot);
-
-    const oldDisplay = content.style.display;
-    content.style.display = 'none';
-
-    return { content, snapshot, oldDisplay };
-  }
-
-  function revealRenderedContent(stage) {
-    const { content, snapshot, oldDisplay } = stage || {};
-    if (!content) return;
-
-    content.style.display = oldDisplay || '';
-
-    if (snapshot?.isConnected) {
-      snapshot.remove();
+      await baseRenderPage.apply(window, args);
+      visibleKey = key;
+      visibleRenderedAt = Date.now();
     }
   }
 
-  function nextPaint() {
-    return new Promise(resolve => {
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    });
-  }
-
-  async function drain(context, args) {
-    if (running) return;
-    running = true;
-
-    let finalError = null;
-    let stage = null;
-
-    startProgress();
-
+  async function run(args) {
+    progressStart();
     try {
-      stage = beginHiddenRender();
-
-      for (;;) {
-        while (pending) {
-          pending = false;
-
-          const runNo = requestNo;
-          const before = routeSnapshot();
-
-          try {
-            await baseRenderPage.apply(context, args);
-          } catch (err) {
-            const afterError = routeSnapshot();
-
-            if (runNo === requestNo && sameRoute(before, afterError)) {
-              finalError = err;
-              console.error(err);
-            } else {
-              console.debug('PRIZ Control: устаревшая загрузка отменена', err);
-            }
-          }
-
-          const after = routeSnapshot();
-
-          if (runNo !== requestNo || !sameRoute(before, after)) {
-            pending = true;
-            finalError = null;
-          }
-        }
-
-        // Браузер получает время построить layout новой скрытой страницы.
-        await nextPaint();
-
-        // Если пользователь нажал другую вкладку прямо во время подготовки
-        // кадра — не показываем промежуточную страницу, а сразу рендерим последнюю.
-        if (pending) continue;
-
-        break;
+      if (typeof document.startViewTransition === 'function') {
+        const transition = document.startViewTransition(() => renderLatestInsideTransition(args));
+        await transition.updateCallbackDone;
+        try { await transition.finished; } catch (_) {}
+      } else {
+        // Older browser fallback. Brave/Chrome uses the branch above.
+        await renderLatestInsideTransition(args);
       }
     } finally {
-      revealRenderedContent(stage);
-      finishProgress();
-      running = false;
-      settleWaiters(finalError);
-
-      if (pending) queueMicrotask(() => drain(context, args));
+      progressEnd();
     }
   }
 
   const stableRenderPage = function (...args) {
-    requestNo += 1;
-    pending = true;
+    requestedSeq += 1;
 
-    const promise = new Promise((resolve, reject) => {
-      waiters.push({ resolve, reject });
-    });
+    if (!runningPromise) {
+      runningPromise = run(args).finally(() => {
+        runningPromise = null;
+        // Request could arrive in the tiny gap after the final loop check.
+        const expectedKey = targetKey();
+        if (visibleKey !== expectedKey) stableRenderPage(...args);
+      });
+    }
 
-    drain(this, args);
-    return promise;
+    return runningPromise;
   };
+
+  function invalidateNavigationCache(scope = 'all') {
+    if (scope === 'all') {
+      pageCache.clear();
+      return;
+    }
+
+    const pages = new Set(Array.isArray(scope) ? scope : [scope]);
+    for (const key of [...pageCache.keys()]) {
+      if (pages.has(pageNameFromKey(key))) pageCache.delete(key);
+    }
+  }
+
+  window.prizInvalidateNavigationCache = invalidateNavigationCache;
+  window.prizNavigationCacheStats = () => ({
+    visibleKey,
+    entries: [...pageCache.keys()],
+    ttlMs: PAGE_CACHE_TTL
+  });
 
   window.renderPage = stableRenderPage;
   try { renderPage = stableRenderPage; } catch (_) {}
