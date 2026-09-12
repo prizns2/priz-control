@@ -1,8 +1,8 @@
 (() => {
-  // PRIZ Control — navigation architecture v5.
-  // Цель: старый экран виден до полной готовности нового, затем один мгновенный кадр.
-  // Никакого cross-fade и одновременного показа старой/новой страницы.
-  // Live DOM cache, быстрые повторные переходы и coalescing быстрых кликов сохранены.
+  // PRIZ Control — navigation architecture v6.
+  // True page slots. No View Transition, no screenshots, no cloned overlays.
+  // One page is visible at a time. A new page is rendered in a hidden real DOM slot,
+  // then swapped in a single paint. Cached slots keep their real nodes and handlers.
 
   if (window.__prizNavigationStabilityInstalled) return;
   window.__prizNavigationStabilityInstalled = true;
@@ -10,131 +10,121 @@
   const baseRenderPage = window.renderPage;
   if (typeof baseRenderPage !== 'function') return;
 
-  const PAGE_CACHE_TTL = 120_000;
-  const PAGE_CACHE_MAX = 12;
+  const CACHE_TTL = 120_000;
+  const CACHE_MAX = 12;
   const pageCache = new Map();
 
   let visibleKey = null;
   let visibleRenderedAt = 0;
   let requestedSeq = 0;
   let runningPromise = null;
-  let progressTimer = null;
+  let lastArgs = [];
+
+  function keyNow() {
+    const page = typeof currentPage !== 'undefined' ? currentPage : 'dashboard';
+    const region = document.getElementById('regionSelect')?.value || 'all';
+    return `${page}|${region}`;
+  }
+
+  function pageFromKey(key) {
+    return String(key || '').split('|', 1)[0] || '';
+  }
+
+  function setupHost() {
+    const original = document.getElementById('content');
+    if (!original) return null;
+
+    // Already converted.
+    if (original.parentElement?.id === 'prizPageHost') {
+      return original.parentElement;
+    }
+
+    // The original .content element becomes a permanent host.
+    original.id = 'prizPageHost';
+    original.setAttribute('data-priz-page-host', '1');
+
+    const firstSlot = document.createElement('section');
+    firstSlot.id = 'content';
+    firstSlot.className = 'priz-page-slot priz-page-active';
+
+    while (original.firstChild) {
+      firstSlot.appendChild(original.firstChild);
+    }
+
+    original.appendChild(firstSlot);
+
+    // If navigation was installed after the first screen had already rendered,
+    // treat that screen as the initial cached/visible page.
+    if (firstSlot.childNodes.length) {
+      visibleKey = keyNow();
+      visibleRenderedAt = Date.now();
+      firstSlot.dataset.prizKey = visibleKey;
+    }
+
+    return original;
+  }
+
+  const host = setupHost();
+  if (!host) return;
 
   function injectStyles() {
-    if (document.getElementById('prizNavigationV5Styles')) return;
-
-    // Удаляем стили предыдущей версии, если браузер держал их в текущем DOM.
     document.getElementById('prizNavigationV4Styles')?.remove();
+    document.getElementById('prizNavigationV5Styles')?.remove();
+
+    if (document.getElementById('prizNavigationV6Styles')) return;
 
     const style = document.createElement('style');
-    style.id = 'prizNavigationV5Styles';
+    style.id = 'prizNavigationV6Styles';
     style.textContent = `
-      /*
-       * Используем только ROOT View Transition.
-       * Старый viewport браузер держит во время async-render.
-       * Когда новый DOM готов — старый снимок сразу исчезает, новый сразу виден.
-       * Нет двух полупрозрачных слоёв и нет визуального смешивания.
-       */
-      ::view-transition-group(root) {
-        animation-duration: 0s !important;
-        animation-delay: 0s !important;
+      #prizPageHost {
+        position: relative;
+        min-width: 0;
       }
 
-      ::view-transition-old(root) {
-        animation: none !important;
-        opacity: 0 !important;
-      }
-
-      ::view-transition-new(root) {
-        animation: none !important;
-        opacity: 1 !important;
-      }
-
-      #prizNavProgress {
-        position: fixed;
-        z-index: 2147483000;
-        left: 0;
-        top: 0;
-        height: 2px;
+      .priz-page-slot {
         width: 100%;
-        pointer-events: none;
-        opacity: 0;
-        transform: scaleX(.08);
-        transform-origin: left center;
-        background: currentColor;
-        color: #8b5cf6;
-        transition: opacity 90ms ease, transform 700ms cubic-bezier(.2,.8,.2,1);
+        min-width: 0;
+        box-sizing: border-box;
       }
 
-      #prizNavProgress.show {
-        opacity: .85;
-        transform: scaleX(.76);
+      .priz-page-slot.priz-page-preparing {
+        position: absolute !important;
+        inset: 0 auto auto 0 !important;
+        width: 100% !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        opacity: 0 !important;
+        z-index: -1 !important;
       }
 
-      #prizNavProgress.done {
-        opacity: 0;
-        transform: scaleX(1);
-        transition: opacity 130ms ease, transform 90ms ease;
+      .priz-page-slot.priz-page-enter {
+        animation: priz-page-enter 72ms ease-out both;
+      }
+
+      @keyframes priz-page-enter {
+        from { opacity: .965; }
+        to   { opacity: 1; }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        #prizNavProgress { transition: none !important; }
+        .priz-page-slot.priz-page-enter {
+          animation: none !important;
+        }
       }
     `;
     document.head.appendChild(style);
-
-    let bar = document.getElementById('prizNavProgress');
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.id = 'prizNavProgress';
-      bar.setAttribute('aria-hidden', 'true');
-      document.body.appendChild(bar);
-    }
   }
 
   injectStyles();
 
-  function progressStart() {
-    const bar = document.getElementById('prizNavProgress');
-    if (!bar) return;
-    clearTimeout(progressTimer);
-    bar.classList.remove('show', 'done');
-
-    // На действительно быстрых переходах индикатор вообще не появляется.
-    progressTimer = setTimeout(() => bar.classList.add('show'), 150);
+  function activeSlot() {
+    return host.querySelector(':scope > .priz-page-active') ||
+           host.querySelector(':scope > #content');
   }
 
-  function progressEnd() {
-    const bar = document.getElementById('prizNavProgress');
-    if (!bar) return;
-    clearTimeout(progressTimer);
-
-    if (!bar.classList.contains('show')) {
-      bar.classList.remove('done');
-      return;
-    }
-
-    bar.classList.remove('show');
-    bar.classList.add('done');
-    setTimeout(() => bar.classList.remove('done'), 150);
-  }
-
-  function regionValue() {
-    return document.getElementById('regionSelect')?.value || 'all';
-  }
-
-  function targetKey() {
-    const page = typeof currentPage !== 'undefined' ? currentPage : 'dashboard';
-    return `${page}|${regionValue()}`;
-  }
-
-  function pageNameFromKey(key) {
-    return String(key || '').split('|', 1)[0] || '';
-  }
-
-  function captureScroll(root) {
+  function captureScroll(slot) {
     const main = document.querySelector('.main');
-    const scrollers = [...(root?.querySelectorAll(
+    const scrollers = [...(slot?.querySelectorAll(
       '.table-wrap,.attendance-table-wrap,[data-priz-keep-scroll]'
     ) || [])].map(el => ({
       top: el.scrollTop,
@@ -148,13 +138,13 @@
     };
   }
 
-  function restoreScroll(root, state) {
+  function restoreScroll(slot, state) {
     if (!state) return;
 
     const main = document.querySelector('.main');
     if (main) main.scrollTop = state.mainTop || 0;
 
-    const list = [...(root?.querySelectorAll(
+    const list = [...(slot?.querySelectorAll(
       '.table-wrap,.attendance-table-wrap,[data-priz-keep-scroll]'
     ) || [])];
 
@@ -166,140 +156,323 @@
     });
 
     if (state.windowY) {
-      window.scrollTo({ top: state.windowY, behavior: 'instant' });
+      try {
+        window.scrollTo({ top: state.windowY, behavior: 'instant' });
+      } catch (_) {
+        window.scrollTo(0, state.windowY);
+      }
     }
   }
 
-  function pruneCache() {
-    while (pageCache.size > PAGE_CACHE_MAX) {
+  function parkIds(slot) {
+    if (!slot) return () => {};
+
+    const saved = [];
+
+    // Root #content must temporarily belong to the hidden render slot.
+    if (slot.id) {
+      saved.push([slot, slot.id]);
+      slot.removeAttribute('id');
+    }
+
+    slot.querySelectorAll('[id]').forEach(el => {
+      saved.push([el, el.id]);
+      el.removeAttribute('id');
+    });
+
+    return () => {
+      for (const [el, id] of saved) {
+        if (el && !el.id) el.id = id;
+      }
+    };
+  }
+
+  function beginHeaderBuffer() {
+    const title = document.getElementById('pageTitle');
+    const eyebrow = document.getElementById('pageEyebrow');
+
+    if (!title || !eyebrow) {
+      return {
+        finish: () => ({ title: '', eyebrow: '' }),
+        cancel: () => {}
+      };
+    }
+
+    const oldTitleId = title.id;
+    const oldEyebrowId = eyebrow.id;
+
+    title.id = 'prizVisiblePageTitle';
+    eyebrow.id = 'prizVisiblePageEyebrow';
+
+    const titleProxy = document.createElement('span');
+    titleProxy.id = oldTitleId;
+    titleProxy.hidden = true;
+    titleProxy.textContent = title.textContent || '';
+
+    const eyebrowProxy = document.createElement('span');
+    eyebrowProxy.id = oldEyebrowId;
+    eyebrowProxy.hidden = true;
+    eyebrowProxy.textContent = eyebrow.textContent || '';
+
+    document.body.append(titleProxy, eyebrowProxy);
+
+    let closed = false;
+
+    function close(apply) {
+      if (closed) {
+        return {
+          title: title.textContent || '',
+          eyebrow: eyebrow.textContent || ''
+        };
+      }
+      closed = true;
+
+      const next = {
+        title: titleProxy.textContent || '',
+        eyebrow: eyebrowProxy.textContent || ''
+      };
+
+      titleProxy.remove();
+      eyebrowProxy.remove();
+
+      title.id = oldTitleId;
+      eyebrow.id = oldEyebrowId;
+
+      if (apply) {
+        title.textContent = next.title;
+        eyebrow.textContent = next.eyebrow;
+      }
+
+      return next;
+    }
+
+    return {
+      finish: () => close(true),
+      cancel: () => close(false)
+    };
+  }
+
+  function prune() {
+    const now = Date.now();
+
+    for (const [key, entry] of pageCache) {
+      if (now - entry.renderedAt > CACHE_TTL) {
+        pageCache.delete(key);
+      }
+    }
+
+    while (pageCache.size > CACHE_MAX) {
       const first = pageCache.keys().next().value;
       if (first === undefined) break;
       pageCache.delete(first);
     }
   }
 
-  function stashVisible() {
-    const content = document.getElementById('content');
-    if (!content || !visibleKey || !content.childNodes.length) return;
+  function cacheDetachedSlot(key, slot, meta) {
+    if (!key || !slot) return;
 
-    const scroll = captureScroll(content);
-    const fragment = document.createDocumentFragment();
+    slot.classList.remove(
+      'priz-page-active',
+      'priz-page-preparing',
+      'priz-page-enter'
+    );
+    slot.removeAttribute('id');
+    slot.remove();
 
-    while (content.firstChild) {
-      fragment.appendChild(content.firstChild);
-    }
-
-    pageCache.delete(visibleKey);
-    pageCache.set(visibleKey, {
-      fragment,
-      renderedAt: visibleRenderedAt || Date.now(),
-      title: document.getElementById('pageTitle')?.textContent || '',
-      eyebrow: document.getElementById('pageEyebrow')?.textContent || '',
-      scroll
+    pageCache.delete(key);
+    pageCache.set(key, {
+      slot,
+      renderedAt: meta?.renderedAt || Date.now(),
+      title: meta?.title || '',
+      eyebrow: meta?.eyebrow || '',
+      scroll: meta?.scroll || null
     });
 
-    pruneCache();
+    prune();
   }
 
   function takeCached(key) {
+    prune();
+
     const entry = pageCache.get(key);
     if (!entry) return null;
-
-    if (Date.now() - entry.renderedAt > PAGE_CACHE_TTL) {
-      pageCache.delete(key);
-      return null;
-    }
 
     pageCache.delete(key);
     return entry;
   }
 
-  function restoreCached(key, entry) {
-    const content = document.getElementById('content');
-    if (!content || !entry) return false;
+  function animateNewOnly(slot) {
+    if (!slot) return;
+    slot.classList.remove('priz-page-enter');
+    // Force a style boundary without touching the old page.
+    void slot.offsetWidth;
+    slot.classList.add('priz-page-enter');
+    setTimeout(() => slot.classList.remove('priz-page-enter'), 90);
+  }
 
-    content.replaceChildren(entry.fragment);
+  function showCached(key, entry) {
+    const old = activeSlot();
+    if (!entry?.slot) return false;
+
+    const oldKey = visibleKey;
+    const oldMeta = old ? {
+      renderedAt: visibleRenderedAt || Date.now(),
+      title: document.getElementById('pageTitle')?.textContent || '',
+      eyebrow: document.getElementById('pageEyebrow')?.textContent || '',
+      scroll: captureScroll(old)
+    } : null;
+
+    let restoreOldIds = () => {};
+    if (old) restoreOldIds = parkIds(old);
+
+    const target = entry.slot;
+    target.id = 'content';
+    target.dataset.prizKey = key;
+    target.classList.add('priz-page-active');
+
+    // Same JS task: browser cannot paint between old removal and new insertion.
+    if (old) {
+      old.classList.remove('priz-page-active');
+      old.remove();
+      restoreOldIds();
+      cacheDetachedSlot(oldKey, old, oldMeta);
+    }
+
+    host.appendChild(target);
 
     const title = document.getElementById('pageTitle');
     const eyebrow = document.getElementById('pageEyebrow');
-
     if (title && entry.title) title.textContent = entry.title;
     if (eyebrow && entry.eyebrow) eyebrow.textContent = entry.eyebrow;
 
     visibleKey = key;
-    visibleRenderedAt = entry.renderedAt;
+    visibleRenderedAt = entry.renderedAt || Date.now();
 
-    requestAnimationFrame(() => restoreScroll(content, entry.scroll));
+    requestAnimationFrame(() => {
+      restoreScroll(target, entry.scroll);
+      animateNewOnly(target);
+    });
+
     return true;
   }
 
-  async function renderLatest(args) {
-    let completedSeq = -1;
+  async function renderFresh(key, seq, args) {
+    const old = activeSlot();
+    const oldKey = visibleKey;
 
-    while (completedSeq !== requestedSeq) {
-      completedSeq = requestedSeq;
-      const key = targetKey();
-
-      if (visibleKey !== key) {
-        stashVisible();
-
-        const cached = takeCached(key);
-        if (cached) {
-          restoreCached(key, cached);
-          continue;
-        }
+    // No previous page (first screen after login): render normally.
+    if (!old || !old.childNodes.length || !oldKey) {
+      if (old && !old.id) old.id = 'content';
+      await baseRenderPage.apply(window, args);
+      visibleKey = keyNow();
+      visibleRenderedAt = Date.now();
+      if (old) {
+        old.dataset.prizKey = visibleKey;
+        old.classList.add('priz-page-active');
       }
+      return;
+    }
 
+    const oldMeta = {
+      renderedAt: visibleRenderedAt || Date.now(),
+      title: document.getElementById('pageTitle')?.textContent || '',
+      eyebrow: document.getElementById('pageEyebrow')?.textContent || '',
+      scroll: captureScroll(old)
+    };
+
+    // Keep the old real page visible, but temporarily park its IDs so all
+    // existing render code resolves IDs only inside the hidden target page.
+    const restoreOldIds = parkIds(old);
+    old.classList.add('priz-page-active');
+
+    const target = document.createElement('section');
+    target.id = 'content';
+    target.className = 'priz-page-slot priz-page-preparing';
+    target.dataset.prizKey = key;
+    host.appendChild(target);
+
+    const headerBuffer = beginHeaderBuffer();
+
+    try {
       await baseRenderPage.apply(window, args);
 
-      // Даём браузеру закончить layout нового экрана до его показа.
-      await new Promise(resolve => requestAnimationFrame(resolve));
+      // Let post-render wrappers/MutationObservers complete the immediate DOM work.
+      await new Promise(resolve =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(resolve)
+        )
+      );
 
+      // A newer click arrived while this page was loading: never flash stale content.
+      if (seq !== requestedSeq || keyNow() !== key) {
+        target.remove();
+        headerBuffer.cancel();
+        restoreOldIds();
+        if (!old.id) old.id = 'content';
+        return;
+      }
+
+      // Prepare target while still invisible.
+      target.classList.remove('priz-page-preparing');
+      target.classList.add('priz-page-active');
+
+      // One JS task, one paint boundary:
+      // old disappears, target becomes visible. They are never both painted.
+      old.classList.remove('priz-page-active');
+      old.remove();
+
+      restoreOldIds();
+      cacheDetachedSlot(oldKey, old, oldMeta);
+
+      headerBuffer.finish();
+
+      // target already owns #content
       visibleKey = key;
       visibleRenderedAt = Date.now();
+
+      requestAnimationFrame(() => animateNewOnly(target));
+    } catch (err) {
+      target.remove();
+      headerBuffer.cancel();
+      restoreOldIds();
+      if (!old.id) old.id = 'content';
+      throw err;
     }
   }
 
-  async function run(args) {
-    progressStart();
+  async function drain(args) {
+    while (true) {
+      const seq = requestedSeq;
+      const key = keyNow();
 
-    try {
-      if (typeof document.startViewTransition === 'function') {
-        /*
-         * startViewTransition замораживает старый viewport,
-         * пока async callback полностью строит новый экран.
-         * CSS выше делает финальный переход нулевой длительности:
-         * OLD -> NEW за один кадр, без cross-fade.
-         */
-        const transition = document.startViewTransition(() => renderLatest(args));
-
-        await transition.updateCallbackDone;
-
-        // Если движок всё же подготовил стандартную анимацию,
-        // принудительно завершаем её. Новый DOM к этому моменту уже готов.
-        try { transition.skipTransition(); } catch (_) {}
-
-        try { await transition.finished; } catch (_) {}
-      } else {
-        // Fallback для браузера без View Transition API.
-        await renderLatest(args);
+      if (visibleKey === key && activeSlot()?.childNodes.length) {
+        if (seq === requestedSeq) return;
+        continue;
       }
-    } finally {
-      progressEnd();
+
+      const cached = takeCached(key);
+      if (cached) {
+        showCached(key, cached);
+      } else {
+        await renderFresh(key, seq, args);
+      }
+
+      if (seq === requestedSeq && visibleKey === keyNow()) {
+        return;
+      }
     }
   }
 
   const stableRenderPage = function (...args) {
     requestedSeq += 1;
+    lastArgs = args;
 
     if (!runningPromise) {
-      runningPromise = run(args).finally(() => {
+      runningPromise = drain(args).finally(() => {
         runningPromise = null;
 
-        // Клик мог прийти в очень маленьком окне после финальной проверки.
-        const expectedKey = targetKey();
-        if (visibleKey !== expectedKey) {
-          stableRenderPage(...args);
+        if (visibleKey !== keyNow()) {
+          stableRenderPage(...lastArgs);
         }
       });
     }
@@ -316,7 +489,7 @@
     const pages = new Set(Array.isArray(scope) ? scope : [scope]);
 
     for (const key of [...pageCache.keys()]) {
-      if (pages.has(pageNameFromKey(key))) {
+      if (pages.has(pageFromKey(key))) {
         pageCache.delete(key);
       }
     }
@@ -326,7 +499,8 @@
   window.prizNavigationCacheStats = () => ({
     visibleKey,
     entries: [...pageCache.keys()],
-    ttlMs: PAGE_CACHE_TTL
+    ttlMs: CACHE_TTL,
+    mode: 'page-slots-v6'
   });
 
   window.renderPage = stableRenderPage;
