@@ -2,7 +2,7 @@
   if (window.__prizSidebarIconsInstalled) return;
   window.__prizSidebarIconsInstalled = true;
 
-  const svg = (body) => `
+  const svg = body => `
     <svg viewBox="0 0 24 24"
          width="21" height="21"
          fill="none"
@@ -71,13 +71,20 @@
 
   function classify(button) {
     const page = String(button.dataset.page || '').toLowerCase();
-    const text = String(button.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+    // Берём текст без самой иконки.
+    const clone = button.cloneNode(true);
+    clone.querySelector('.nav-ico')?.remove();
+    const text = String(clone.textContent || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
 
     if (page === 'dashboard' || /главн|home/.test(text)) return 'home';
     if (page === 'records' || /запис|records/.test(text)) return 'records';
     if (/attendance|табел|таблиц|table/.test(page + ' ' + text)) return 'table';
     if (page === 'audit' || /истор|history/.test(text)) return 'history';
-    if (/delet|request|archive|обращ|заяв|удален|архив|audit/.test(page + ' ' + text)) return 'inbox';
+    if (/delet|request|archive|обращ|заяв|удален|архив/.test(page + ' ' + text)) return 'inbox';
     if (page === 'settings' || /управ|настро|settings/.test(text)) return 'settings';
     if (/analytic|аналит/.test(page + ' ' + text)) return 'analytics';
     if (/notif|уведом/.test(page + ' ' + text)) return 'bell';
@@ -85,7 +92,7 @@
     return 'default';
   }
 
-  function cleanLabel(button) {
+  function labelOf(button) {
     const clone = button.cloneNode(true);
     clone.querySelector('.nav-ico')?.remove();
     return String(clone.textContent || '').replace(/\s+/g, ' ').trim();
@@ -94,7 +101,8 @@
   function decorateButton(button) {
     if (!(button instanceof HTMLElement)) return;
 
-    let icon = button.querySelector('.nav-ico');
+    let icon = button.querySelector(':scope > .nav-ico');
+
     if (!icon) {
       icon = document.createElement('span');
       icon.className = 'nav-ico';
@@ -102,14 +110,20 @@
     }
 
     const type = classify(button);
-    icon.innerHTML = ICONS[type] || ICONS.default;
-    icon.dataset.prizIcon = type;
+
+    // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ:
+    // повторно DOM внутри SVG не трогаем, если нужная иконка уже стоит.
+    if (icon.dataset.prizIcon !== type) {
+      icon.innerHTML = ICONS[type] || ICONS.default;
+      icon.dataset.prizIcon = type;
+    }
+
     icon.setAttribute('aria-hidden', 'true');
 
-    const label = cleanLabel(button);
+    const label = labelOf(button);
     if (label) {
       button.title = label;
-      if (!button.getAttribute('aria-label')) button.setAttribute('aria-label', label);
+      button.setAttribute('aria-label', label);
     }
 
     button.classList.add('priz-nav-polished');
@@ -118,7 +132,7 @@
   function decorateNav() {
     const nav = document.getElementById('nav');
     if (!nav) return;
-    nav.querySelectorAll('.nav-btn').forEach(decorateButton);
+    nav.querySelectorAll(':scope > .nav-btn').forEach(decorateButton);
   }
 
   function injectStyles() {
@@ -127,9 +141,7 @@
     const style = document.createElement('style');
     style.id = 'prizSidebarIconStyles';
     style.textContent = `
-      #nav {
-        gap: 7px !important;
-      }
+      #nav { gap: 7px !important; }
 
       #nav .nav-btn {
         position: relative;
@@ -159,7 +171,7 @@
         bottom: 10px;
         width: 2px;
         border-radius: 999px;
-        background: linear-gradient(180deg, #c4b5fd, #7c3aed);
+        background: linear-gradient(180deg,#c4b5fd,#7c3aed);
         opacity: 0;
         transform: scaleY(.45);
         box-shadow: 0 0 13px rgba(139,92,246,.85);
@@ -168,8 +180,11 @@
 
       #nav .nav-btn:hover {
         color: #f0edff !important;
-        background:
-          linear-gradient(90deg, rgba(139,92,246,.095), rgba(139,92,246,.025)) !important;
+        background: linear-gradient(
+          90deg,
+          rgba(139,92,246,.095),
+          rgba(139,92,246,.025)
+        ) !important;
         border-color: rgba(139,92,246,.10) !important;
         transform: translateX(1px);
       }
@@ -177,8 +192,8 @@
       #nav .nav-btn.active {
         color: #f1edff !important;
         background:
-          radial-gradient(circle at 14% 50%, rgba(139,92,246,.19), transparent 47%),
-          linear-gradient(90deg, rgba(88,52,154,.24), rgba(35,27,57,.34)) !important;
+          radial-gradient(circle at 14% 50%,rgba(139,92,246,.19),transparent 47%),
+          linear-gradient(90deg,rgba(88,52,154,.24),rgba(35,27,57,.34)) !important;
         border-color: rgba(151,112,255,.22) !important;
         box-shadow:
           inset 0 1px 0 rgba(255,255,255,.025),
@@ -223,8 +238,11 @@
 
       #nav .nav-btn.active .nav-ico {
         color: #eee9ff;
-        background:
-          linear-gradient(145deg, rgba(94,55,166,.56), rgba(54,35,91,.52));
+        background: linear-gradient(
+          145deg,
+          rgba(94,55,166,.56),
+          rgba(54,35,91,.52)
+        );
         border-color: rgba(171,135,255,.34);
         box-shadow:
           inset 0 1px 0 rgba(255,255,255,.08),
@@ -239,37 +257,32 @@
         transform: scale(.94);
       }
 
-      @media (max-width: 760px) {
-        #nav .nav-btn {
-          min-height: 45px;
-        }
+      @media (max-width:760px) {
+        #nav .nav-btn { min-height:45px; }
       }
     `;
+
     document.head.appendChild(style);
   }
 
   injectStyles();
-  decorateNav();
 
   const nav = document.getElementById('nav');
-  if (nav) {
-    const observer = new MutationObserver(() => {
-      queueMicrotask(decorateNav);
-    });
 
-    observer.observe(nav, {
-      childList: true,
-      subtree: true
-    });
-  }
+  if (!nav) return;
 
-  // На случай повторного buildShell после входа/переключения аккаунта.
-  const bodyObserver = new MutationObserver(() => {
-    const currentNav = document.getElementById('nav');
-    if (currentNav) decorateNav();
+  decorateNav();
+
+  /*
+   * Следим ТОЛЬКО за прямыми детьми #nav.
+   * buildShell() и другие модули могут заменить/добавить кнопки.
+   * Изменения внутри SVG observer больше не видит -> цикла быть не может.
+   */
+  const observer = new MutationObserver(() => {
+    decorateNav();
   });
 
-  bodyObserver.observe(document.body, {
+  observer.observe(nav, {
     childList: true,
     subtree: false
   });
