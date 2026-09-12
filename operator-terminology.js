@@ -15,10 +15,25 @@
     'Согласуйте или отклоните заявки старших операторов.',
     'Удаление доступно только после согласования руководителем.',
     'После согласования заявка автоматически перейдёт Owner для окончательного удаления.',
-    'Цепочка: старший оператор → руководитель → Owner.'
+    'Цепочка: старший оператор → руководитель → Owner.',
+    'Файлы будут загружены напрямую в Backblaze после сохранения записи.',
+    'Распознать фабулу',
+    'При вставке попробуем определить Ф.И.О. и суммы.',
+    'Распознать фабулу При вставке попробуем определить Ф.И.О. и суммы.',
+    '1 · 1В · 1Л',
+    '1 • 1В • 1Л'
   ]);
 
   const REMOVE_PREFIXES = ['Быстрый ввод:'];
+
+  const CLEAR_PLACEHOLDER_PATTERNS = [
+    /^Вставь или напиши фабулу(?:\.{3}|…)?$/i,
+    /^Вставится из фабулы автоматически$/i,
+    /^Подставится по магазину$/i
+  ];
+
+  const TECH_RECORD_ID_RE = /^[A-Z0-9_-]+-\d{8}-(?:CAT1|CAT2|EV)-[A-Z0-9]{6}$/i;
+  const HIDE_RECORD_ID_ROLES = new Set(['operator', 'senior', 'boss']);
 
   const style = document.createElement('style');
   style.id = 'prizTerminologyStyles';
@@ -26,22 +41,7 @@
     #content #q:not([data-priz-wording-ready="1"]) {
       visibility: hidden !important;
     }
-
     .attendance-fast-hint {
-      display: none !important;
-    }
-
-    /* Убираем служебные подсказки формы без ожидания MutationObserver. */
-    #recordDialogBody .story-tools {
-      display: none !important;
-    }
-
-    #recordDialogBody .upload-box .file-hint {
-      display: none !important;
-    }
-
-    /* Убираем подпись "1 + 1В + 1Л" под колонкой "Смен". */
-    .attendance-table .att-summary-head small {
       display: none !important;
     }
   `;
@@ -51,16 +51,36 @@
     return String(value ?? '').replace(/\s+/g, ' ').trim();
   }
 
+  function shouldHideTechnicalRecordId(value) {
+    const role = String(window.currentUser?.role || currentUser?.role || '');
+    if (!HIDE_RECORD_ID_ROLES.has(role)) return false;
+    return TECH_RECORD_ID_RE.test(normalizeText(value));
+  }
+
   function shouldRemoveText(value) {
     const text = normalizeText(value);
     if (!text) return false;
     if (REMOVE_EXACT.has(text)) return true;
-    return REMOVE_PREFIXES.some(prefix => text.startsWith(prefix));
+    if (REMOVE_PREFIXES.some(prefix => text.startsWith(prefix))) return true;
+    if (/^1\s*[·•]\s*1В\s*[·•]\s*1Л$/i.test(text)) return true;
+    return false;
+  }
+
+  function shouldClearPlaceholder(value) {
+    const text = normalizeText(value);
+    return CLEAR_PLACEHOLDER_PATTERNS.some(re => re.test(text));
   }
 
   function removeHelperElement(el) {
     if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+
     const text = normalizeText(el.textContent);
+
+    if (shouldHideTechnicalRecordId(text)) {
+      el.remove();
+      return true;
+    }
+
     if (!shouldRemoveText(text)) return false;
     el.remove();
     return true;
@@ -97,32 +117,6 @@
     input.dataset.prizWordingReady = '1';
   }
 
-  function cleanRecordFormHints(root) {
-    const scope = root?.querySelectorAll ? root : document;
-
-    scope.querySelectorAll?.('#recordDialogBody input[name="manager"]').forEach(el => {
-      if (el.placeholder) el.placeholder = '';
-      if (el.title === 'Менеджер подставляется автоматически') el.removeAttribute('title');
-    });
-
-    scope.querySelectorAll?.('#recordDialogBody input[name="employee"]').forEach(el => {
-      if (el.placeholder) el.placeholder = '';
-    });
-
-    scope.querySelectorAll?.('#recordDialogBody textarea[name="story"]').forEach(el => {
-      if (el.placeholder) el.placeholder = '';
-    });
-
-    // Физически удаляем строку распознавания фабулы.
-    scope.querySelectorAll?.('#recordDialogBody .story-tools').forEach(el => el.remove());
-
-    // Физически удаляем подпись про Backblaze.
-    scope.querySelectorAll?.('#recordDialogBody .upload-box .file-hint').forEach(el => el.remove());
-
-    // Убираем служебную подпись под "Смен".
-    scope.querySelectorAll?.('.attendance-table .att-summary-head small').forEach(el => el.remove());
-  }
-
   function isUiLabelText(trimmed) {
     return (
       trimmed === 'Автор' || trimmed === 'АВТОР' ||
@@ -146,6 +140,15 @@
     const parent = node.parentElement;
     if (!parent || ['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) return;
 
+    if (shouldHideTechnicalRecordId(node.nodeValue || '')) {
+      if (normalizeText(parent.textContent) === normalizeText(node.nodeValue || '')) {
+        parent.remove();
+      } else {
+        node.nodeValue = '';
+      }
+      return;
+    }
+
     if (shouldRemoveText(parent.textContent)) {
       parent.remove();
       return;
@@ -161,7 +164,6 @@
 
   function processElement(el) {
     if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
-
     if (removeHelperElement(el)) return;
 
     prepareSearch(el);
@@ -170,6 +172,12 @@
       if (!el.hasAttribute(attr)) continue;
 
       const current = el.getAttribute(attr) || '';
+
+      if (attr === 'placeholder' && shouldClearPlaceholder(current)) {
+        el.setAttribute(attr, '');
+        continue;
+      }
+
       let next = replaceUiText(current);
 
       if (attr === 'placeholder') {
@@ -180,8 +188,6 @@
 
       if (next !== current) el.setAttribute(attr, next);
     }
-
-    cleanRecordFormHints(el);
 
     const descendants = Array.from(el.querySelectorAll('*'));
     for (const child of descendants) {
@@ -201,14 +207,11 @@
 
   function apply(root = document.body) {
     if (!root) return;
-
     if (root.nodeType === Node.TEXT_NODE) {
       processTextNode(root);
       return;
     }
-
     processElement(root);
-    cleanRecordFormHints(document);
   }
 
   function start() {
@@ -220,16 +223,12 @@
           processTextNode(mutation.target);
           continue;
         }
-
         if (mutation.type === 'attributes') {
           processElement(mutation.target);
           continue;
         }
-
         for (const node of mutation.addedNodes) apply(node);
       }
-
-      cleanRecordFormHints(document);
     });
 
     observer.observe(document.body, {
