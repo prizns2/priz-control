@@ -1,0 +1,425 @@
+
+/* =========================================================
+   PRIZ CONTROL — HOME MATCH v3 EXACT GEOMETRY
+   CSS-only. No JS. No observers. No logic changes.
+   Designed to preserve the reference proportions on wide screens.
+   ========================================================= */
+
+:root{
+  --hm3-sidebar: clamp(244px, 14.2vw, 372px);
+  --hm3-pad-x: clamp(28px, 1.85vw, 48px);
+  --hm3-card-gap: clamp(14px, .85vw, 22px);
+  --hm3-radius: clamp(16px, .8vw, 21px);
+}
+
+/* ===== APP SHELL ===== */
+
+.app{
+  grid-template-columns: var(--hm3-sidebar) 1fr !important;
+}
+
+.sidebar{
+  width: var(--hm3-sidebar) !important;
+  padding:
+    clamp(20px, 1.25vw, 32px)
+    clamp(14px, .9vw, 24px)
+    clamp(14px, .9vw, 24px) !important;
+}
+
+.main{
+  grid-column: 2 !important;
+}
+
+.sidebar-brand{
+  gap: clamp(11px, .7vw, 17px) !important;
+  padding: 0 clamp(8px,.5vw,14px) clamp(22px,1.35vw,34px) !important;
+}
+
+.sidebar-brand .brand-mark.mini{
+  width: clamp(38px,2.2vw,56px) !important;
+  height: clamp(38px,2.2vw,56px) !important;
+  border-radius: clamp(12px,.7vw,17px) !important;
+  font-size: clamp(22px,1.25vw,31px) !important;
+}
+
+.sidebar-brand b{
+  font-size: clamp(16px,.92vw,23px) !important;
+}
+
+.sidebar-brand span{
+  font-size: clamp(10px,.56vw,14px) !important;
+}
+
+/* ===== SIDEBAR NAV ===== */
+
+#nav{
+  gap: clamp(6px,.38vw,10px) !important;
+}
+
+#nav .nav-btn{
+  min-height: clamp(47px,2.75vw,68px) !important;
+  gap: clamp(11px,.68vw,17px) !important;
+  padding: clamp(7px,.45vw,11px) clamp(10px,.62vw,16px) !important;
+  border-radius: clamp(13px,.72vw,18px) !important;
+  font-size: clamp(13px,.73vw,18px) !important;
+}
+
+#nav .nav-ico{
+  width: clamp(34px,1.95vw,49px) !important;
+  height: clamp(34px,1.95vw,49px) !important;
+  flex-basis: clamp(34px,1.95vw,49px) !important;
+  border-radius: clamp(10px,.58vw,15px) !important;
+}
+
+#nav .nav-ico svg{
+  width: clamp(20px,1.12vw,28px) !important;
+  height: clamp(20px,1.12vw,28px) !important;
+}
+
+/* ===== TOPBAR ===== */
+
+.topbar{
+  height: clamp(104px,6vw,150px) !important;
+  min-height: clamp(104px,6vw,150px) !important;
+  padding: 0 var(--hm3-pad-x) !important;
+}
+
+.topbar .eyebrow{
+  font-size: clamp(10px,.6vw,15px) !important;
+  margin-bottom: clamp(6px,.34vw,9px) !important;
+}
+
+.topbar h2{
+  font-size: clamp(28px,1.6vw,40px) !important;
+}
+
+.hm-page-subtitle{
+  margin-top: clamp(7px,.4vw,10px) !important;
+  font-size: clamp(12px,.68vw,17px) !important;
+}
+
+.top-actions{
+  gap: clamp(10px,.6vw,15px) !important;
+}
+
+.select.compact{
+  min-width: clamp(176px,10vw,255px) !important;
+  min-height: clamp(44px,2.55vw,63px) !important;
+  padding:
+    clamp(10px,.58vw,15px)
+    clamp(34px,2vw,49px)
+    clamp(10px,.58vw,15px)
+    clamp(12px,.7vw,18px) !important;
+  border-radius: clamp(12px,.7vw,17px) !important;
+  font-size: clamp(13px,.75vw,18px) !important;
+}
+
+#quickAddBtn{
+  min-height: clamp(44px,2.55vw,63px) !important;
+  padding: clamp(10px,.58vw,15px) clamp(17px,1vw,25px) !important;
+  border-radius: clamp(11px,.65vw,16px) !important;
+  font-size: clamp(13px,.76vw,19px) !important;
+}
+
+/* ===== CONTENT ===== */
+
+#content.content,
+.priz-page-slot.content{
+  padding:
+    clamp(22px,1.4vw,35px)
+    var(--hm3-pad-x)
+    clamp(46px,2.8vw,72px) !important;
+}
+
+/* ===== STATS ===== */
+
+#content .dashboard-today.hm-stats-row{
+  gap: var(--hm3-card-gap) !important;
+}
+
+#content .dashboard-today.hm-stats-row .stat-card.hm-stat-card{
+  min-height: clamp(122px,7.3vw,182px) !important;
+  height: clamp(122px,7.3vw,182px) !important;
+  grid-template-columns:
+    clamp(54px,3.1vw,78px)
+    minmax(0,1fr)
+    clamp(72px,4.7vw,118px) !important;
+  gap: clamp(14px,.82vw,21px) !important;
+  padding: clamp(16px,1vw,25px) !important;
+  border-radius: var(--hm3-radius) !important;
+}
+
+#content .hm-stat-icon{
+  width: clamp(52px,3vw,75px) !important;
+  height: clamp(52px,3vw,75px) !important;
+  border-radius: clamp(14px,.82vw,20px) !important;
+}
+
+#content .hm-stat-icon svg{
+  width: clamp(25px,1.48vw,37px) !important;
+  height: clamp(25px,1.48vw,37px) !important;
+}
+
+#content .dashboard-today.hm-stats-row .hm-stat-copy .stat-label{
+  font-size: clamp(11.5px,.68vw,17px) !important;
+}
+
+#content .dashboard-today.hm-stats-row .hm-stat-copy .stat-value{
+  margin: clamp(7px,.43vw,11px) 0 clamp(5px,.3vw,8px) !important;
+  font-size: clamp(31px,1.9vw,48px) !important;
+}
+
+#content .dashboard-today.hm-stats-row .hm-stat-copy .stat-sub{
+  font-size: clamp(10px,.58vw,15px) !important;
+}
+
+#content .hm-stat-badge{
+  top: clamp(14px,.82vw,21px) !important;
+  right: clamp(14px,.82vw,21px) !important;
+  height: clamp(24px,1.42vw,35px) !important;
+  padding: 0 clamp(8px,.48vw,12px) !important;
+  border-radius: clamp(8px,.46vw,12px) !important;
+  font-size: clamp(8px,.46vw,12px) !important;
+}
+
+#content .hm-stat-badge i{
+  width: clamp(5px,.3vw,7px) !important;
+  height: clamp(5px,.3vw,7px) !important;
+}
+
+#content .hm-stat-spark{
+  width: clamp(72px,4.8vw,120px) !important;
+  height: clamp(30px,1.9vw,48px) !important;
+  margin-bottom: clamp(5px,.3vw,8px) !important;
+}
+
+/* ===== QUICK ADD ===== */
+
+#content .panel.hm-quick-panel{
+  margin-top: clamp(20px,1.25vw,31px) !important;
+}
+
+#content .panel.hm-quick-panel > .panel-head{
+  margin-bottom: clamp(12px,.72vw,18px) !important;
+}
+
+#content .panel.hm-quick-panel > .panel-head h3{
+  font-size: clamp(14px,.83vw,21px) !important;
+}
+
+#content .hm-quick-grid{
+  gap: var(--hm3-card-gap) !important;
+}
+
+#content .hm-quick-grid > .quick-card.hm-quick-card{
+  min-height: clamp(108px,6.4vw,160px) !important;
+  grid-template-columns:
+    clamp(58px,3.4vw,85px)
+    minmax(0,1fr)
+    clamp(40px,2.35vw,59px) !important;
+  gap: clamp(16px,.94vw,24px) !important;
+  padding: clamp(17px,1.05vw,26px) !important;
+  border-radius: var(--hm3-radius) !important;
+}
+
+#content .hm-quick-card .hm-quick-icon{
+  width: clamp(56px,3.25vw,81px) !important;
+  height: clamp(56px,3.25vw,81px) !important;
+  border-radius: clamp(14px,.85vw,21px) !important;
+}
+
+#content .hm-quick-icon svg{
+  width: clamp(26px,1.5vw,38px) !important;
+  height: clamp(26px,1.5vw,38px) !important;
+}
+
+#content .hm-quick-copy .quick-title{
+  font-size: clamp(15px,.9vw,23px) !important;
+}
+
+#content .hm-quick-copy .quick-desc{
+  margin-top: clamp(7px,.4vw,10px) !important;
+  font-size: clamp(10.5px,.64vw,16px) !important;
+  max-width: clamp(310px,20vw,510px) !important;
+}
+
+#content .hm-quick-arrow{
+  width: clamp(38px,2.25vw,56px) !important;
+  height: clamp(38px,2.25vw,56px) !important;
+}
+
+#content .hm-quick-arrow svg{
+  width: clamp(17px,1vw,25px) !important;
+  height: clamp(17px,1vw,25px) !important;
+}
+
+/* ===== RECORDS PANEL ===== */
+
+#content .panel.hm-records-panel{
+  margin-top: clamp(18px,1.1vw,28px) !important;
+  padding: clamp(16px,1vw,25px) !important;
+  border-radius: var(--hm3-radius) !important;
+}
+
+#content .hm-records-panel .dashboard-records-head{
+  min-height: clamp(45px,2.7vw,67px) !important;
+  margin-bottom: clamp(10px,.62vw,15px) !important;
+}
+
+#content .hm-records-title-wrap{
+  padding-left: clamp(40px,2.45vw,61px) !important;
+  min-height: clamp(34px,2.05vw,51px) !important;
+}
+
+#content .hm-records-title-icon{
+  width: clamp(31px,1.85vw,46px) !important;
+  height: clamp(31px,1.85vw,46px) !important;
+  border-radius: clamp(9px,.55vw,13px) !important;
+}
+
+#content .hm-records-title-icon svg{
+  width: clamp(16px,.95vw,24px) !important;
+  height: clamp(16px,.95vw,24px) !important;
+}
+
+#content .hm-records-panel .panel-head h3{
+  font-size: clamp(14px,.84vw,21px) !important;
+}
+
+#content .hm-records-panel .panel-head .small{
+  font-size: clamp(9.5px,.58vw,14px) !important;
+}
+
+#content .hm-records-panel #allRecords{
+  min-height: clamp(34px,2vw,50px) !important;
+  padding: clamp(7px,.42vw,11px) clamp(11px,.65vw,17px) !important;
+  font-size: clamp(10px,.6vw,15px) !important;
+}
+
+#content .hm-records-panel .dashboard-kind-tabs{
+  gap: clamp(8px,.48vw,12px) !important;
+  margin-bottom: clamp(11px,.65vw,16px) !important;
+}
+
+#content .hm-records-panel .hm-kind-tab{
+  min-height: clamp(35px,2.05vw,51px) !important;
+  padding: clamp(7px,.42vw,11px) clamp(13px,.78vw,20px) !important;
+  border-radius: clamp(9px,.54vw,13px) !important;
+  font-size: clamp(10.5px,.63vw,16px) !important;
+}
+
+#content .hm-records-panel th{
+  height: clamp(37px,2.2vw,55px) !important;
+  padding: clamp(9px,.54vw,13px) clamp(10px,.6vw,15px) !important;
+  font-size: clamp(8.5px,.5vw,12.5px) !important;
+}
+
+#content .hm-records-panel td{
+  padding: clamp(10px,.62vw,15px) !important;
+  font-size: clamp(10.5px,.63vw,16px) !important;
+}
+
+#content .hm-records-panel .edit-row{
+  min-height: clamp(30px,1.8vw,44px) !important;
+  padding: clamp(6px,.36vw,9px) clamp(10px,.62vw,15px) !important;
+  font-size: clamp(9.5px,.57vw,14px) !important;
+}
+
+/* ===== PROFILE ===== */
+
+#userCard.hm-user-card{
+  min-height: clamp(94px,5.8vw,145px) !important;
+  padding:
+    clamp(13px,.8vw,20px)
+    clamp(10px,.65vw,16px)
+    clamp(12px,.75vw,18px)
+    clamp(55px,3.5vw,87px) !important;
+  border-radius: clamp(14px,.85vw,21px) !important;
+}
+
+#userCard .hm-user-avatar{
+  left: clamp(12px,.72vw,18px) !important;
+  top: clamp(13px,.78vw,19px) !important;
+  width: clamp(34px,2.2vw,55px) !important;
+  height: clamp(34px,2.2vw,55px) !important;
+}
+
+#userCard .hm-user-avatar b{
+  font-size: clamp(14px,.85vw,21px) !important;
+}
+
+#userCard .hm-user-avatar i{
+  width: clamp(9px,.58vw,14px) !important;
+  height: clamp(9px,.58vw,14px) !important;
+}
+
+#userCard.hm-user-card > b{
+  font-size: clamp(11.5px,.7vw,17px) !important;
+  margin-bottom: clamp(4px,.25vw,6px) !important;
+}
+
+#userCard.hm-user-card > span{
+  font-size: clamp(9.5px,.58vw,14px) !important;
+}
+
+#userCard.hm-user-card .role-pill,
+#userCard.hm-user-card .sync-pill{
+  font-size: clamp(8.5px,.5vw,12.5px) !important;
+  margin-top: clamp(6px,.38vw,9px) !important;
+}
+
+.sidebar-bottom > .btn{
+  min-height: clamp(39px,2.35vw,58px) !important;
+  border-radius: clamp(10px,.6vw,15px) !important;
+  font-size: clamp(12px,.72vw,18px) !important;
+}
+
+/* ===== HIGH-RES DESKTOP =====
+   On very wide screens keep the reference proportions instead of shrinking visually.
+*/
+@media (min-width: 2200px){
+  .app{
+    grid-template-columns: min(15vw, 382px) 1fr !important;
+  }
+
+  .sidebar{
+    width: min(15vw, 382px) !important;
+  }
+
+  #content .dashboard-today.hm-stats-row .stat-card.hm-stat-card{
+    min-height: 168px !important;
+    height: 168px !important;
+  }
+
+  #content .hm-quick-grid > .quick-card.hm-quick-card{
+    min-height: 150px !important;
+  }
+}
+
+/* ===== RESPONSIVE SAFETY ===== */
+
+@media (max-width: 1100px){
+  :root{ --hm3-sidebar: 244px; }
+
+  #content .dashboard-today.hm-stats-row{
+    grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+  }
+
+  #content .hm-quick-grid{
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 760px){
+  .app{ grid-template-columns: 1fr !important; }
+  .sidebar{ width:auto !important; }
+  .main{ grid-column:1 !important; }
+
+  #content .dashboard-today.hm-stats-row{
+    grid-template-columns: 1fr !important;
+  }
+
+  #content .dashboard-today.hm-stats-row .stat-card.hm-stat-card{
+    height:auto !important;
+  }
+}
