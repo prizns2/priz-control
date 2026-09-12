@@ -11,7 +11,8 @@
 
   function isSharedOperatorAccount() {
     return !!(
-      window.currentUser &&
+      typeof currentUser !== 'undefined' &&
+      currentUser &&
       currentUser.role === 'operator' &&
       currentUser.isSharedRegionAccount
     );
