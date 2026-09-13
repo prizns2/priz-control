@@ -1,16 +1,21 @@
 (() => {
-  // PRIZ Control — ROLE / UI STABILITY v13
-  // Replaces v12. Load LAST, after priz-exact-ui.js.
-  if (window.__prizRoleUiStabilityV13Installed) return;
-  window.__prizRoleUiStabilityV13Installed = true;
+  // PRIZ Control — ROLE / UI STABILITY v14
+  // Replaces v13. Load LAST, after priz-exact-ui.js.
+  if (window.__prizRoleUiStabilityV14Installed) return;
+  window.__prizRoleUiStabilityV14Installed = true;
 
-  const BLOCKED_ATTENDANCE = new Set(['chernihiv', 'chernigov', 'poltava', 'sumy', 'sumi']);
+  const BLOCKED_ATTENDANCE = new Set([
+    'chernihiv','chernigov',
+    'poltava',
+    'sumy','sumi'
+  ]);
+
   const PARENT_HINTS = {
     chernihiv: ['kyiv','kiev','киев','київ'],
     chernigov: ['kyiv','kiev','киев','київ'],
-    poltava:   ['kharkiv','harkiv','харьков','харків'],
-    sumy:      ['kharkiv','harkiv','харьков','харків'],
-    sumi:      ['kharkiv','harkiv','харьков','харків']
+    poltava: ['kharkiv','harkiv','харьков','харків'],
+    sumy: ['kharkiv','harkiv','харьков','харків'],
+    sumi: ['kharkiv','harkiv','харьков','харків']
   };
 
   let managerLoginGuardUntil = 0;
@@ -20,34 +25,40 @@
     catch (_) { return window.currentUser?.role || ''; }
   }
 
-  function selectedRegionCode() {
-    return document.getElementById('regionSelect')?.value || 'all';
-  }
-
   function norm(v) {
     return String(v || '').trim().toLowerCase();
   }
 
+  function selectedRegionCode() {
+    return document.getElementById('regionSelect')?.value || 'all';
+  }
+
   function regionName(code) {
-    try { return norm(REGIONS?.[code]?.name || REGIONS?.[code]?.eyebrow || code); }
-    catch (_) { return norm(code); }
+    try {
+      return norm(REGIONS?.[code]?.name || REGIONS?.[code]?.eyebrow || code);
+    } catch (_) {
+      return norm(code);
+    }
   }
 
   function blockedAttendanceRegion(code) {
     const c = norm(code);
     if (BLOCKED_ATTENDANCE.has(c)) return true;
-    const name = regionName(code);
+
+    const n = regionName(code);
     return (
-      name.includes('чернигов') || name.includes('чернігів') ||
-      name.includes('полтава') ||
-      name.includes('сумы') || name.includes('суми')
+      n.includes('чернигов') ||
+      n.includes('чернігів') ||
+      n.includes('полтава') ||
+      n.includes('сумы') ||
+      n.includes('суми')
     );
   }
 
   function findRegionCodeByHints(hints) {
     try {
-      for (const [code, r] of Object.entries(REGIONS || {})) {
-        const hay = `${norm(code)} ${norm(r?.name)} ${norm(r?.eyebrow)}`;
+      for (const [code, region] of Object.entries(REGIONS || {})) {
+        const hay = `${norm(code)} ${norm(region?.name)} ${norm(region?.eyebrow)}`;
         if (hints.some(h => hay.includes(h))) return code;
       }
     } catch (_) {}
@@ -56,18 +67,27 @@
 
   function parentAttendanceRegion(code) {
     const c = norm(code);
+    const name = regionName(code);
 
-    if (c === 'chernihiv' || c === 'chernigov' ||
-        regionName(code).includes('чернигов') || regionName(code).includes('чернігів')) {
+    if (
+      c === 'chernihiv' ||
+      c === 'chernigov' ||
+      name.includes('чернигов') ||
+      name.includes('чернігів')
+    ) {
       return findRegionCodeByHints(PARENT_HINTS.chernihiv);
     }
 
-    if (c === 'poltava' || regionName(code).includes('полтава')) {
+    if (c === 'poltava' || name.includes('полтава')) {
       return findRegionCodeByHints(PARENT_HINTS.poltava);
     }
 
-    if (c === 'sumy' || c === 'sumi' ||
-        regionName(code).includes('сумы') || regionName(code).includes('суми')) {
+    if (
+      c === 'sumy' ||
+      c === 'sumi' ||
+      name.includes('сумы') ||
+      name.includes('суми')
+    ) {
       return findRegionCodeByHints(PARENT_HINTS.sumy);
     }
 
@@ -83,7 +103,9 @@
     } catch (_) {}
 
     try {
-      if (currentUser?.region && currentUser.region !== 'all') return [currentUser.region];
+      if (currentUser?.region && currentUser.region !== 'all') {
+        return [currentUser.region];
+      }
     } catch (_) {}
 
     return [];
@@ -95,13 +117,27 @@
     return [...select.options].some(o => o.value === code);
   }
 
-  function firstAllowedAttendanceRegion() {
+  function allowedAttendanceOptions() {
     const select = document.getElementById('regionSelect');
-    if (!select) return null;
+    if (!select) return [];
 
-    const options = [...select.options]
+    return [...select.options]
       .map(o => o.value)
       .filter(v => v && v !== 'all' && !blockedAttendanceRegion(v));
+  }
+
+  function preferredAttendanceRegion() {
+    const options = allowedAttendanceOptions();
+
+    // Owner / boss: prefer Kharkiv as the central default if available.
+    if (['owner','boss'].includes(roleNow())) {
+      const kharkiv = options.find(code => {
+        const hay = `${norm(code)} ${regionName(code)}`;
+        return hay.includes('kharkiv') || hay.includes('harkiv') ||
+               hay.includes('харьков') || hay.includes('харків');
+      });
+      if (kharkiv) return kharkiv;
+    }
 
     return options[0] || null;
   }
@@ -110,17 +146,18 @@
     const role = roleNow();
 
     if (role === 'manager') return false;
+
+    // Owner / boss always keep the Attendance section,
+    // but blocked regions are removed INSIDE Attendance.
     if (role === 'owner' || role === 'boss') return true;
 
     const selected = selectedRegionCode();
 
-    // For normal operators / seniors the nav follows the region they are viewing.
     if (selected && selected !== 'all') {
       return !blockedAttendanceRegion(selected);
     }
 
-    const allowed = allowedCodes();
-    return allowed.some(code => !blockedAttendanceRegion(code));
+    return allowedCodes().some(code => !blockedAttendanceRegion(code));
   }
 
   function makeAttendanceNavButton() {
@@ -136,9 +173,14 @@
     };
 
     const recordsBtn = nav.querySelector('[data-page="records"]');
-    if (recordsBtn?.nextSibling) nav.insertBefore(btn, recordsBtn.nextSibling);
-    else if (recordsBtn) nav.appendChild(btn);
-    else nav.prepend(btn);
+
+    if (recordsBtn?.nextSibling) {
+      nav.insertBefore(btn, recordsBtn.nextSibling);
+    } else if (recordsBtn) {
+      nav.appendChild(btn);
+    } else {
+      nav.prepend(btn);
+    }
 
     return btn;
   }
@@ -151,17 +193,20 @@
 
     if (shouldShowAttendanceNav()) {
       if (!existing) makeAttendanceNavButton();
-    } else {
-      existing?.remove();
-
-      try {
-        if (typeof currentPage !== 'undefined' && currentPage === 'attendance') {
-          setTimeout(() => {
-            try { if (typeof go === 'function') go('records'); } catch (_) {}
-          }, 0);
-        }
-      } catch (_) {}
+      return;
     }
+
+    existing?.remove();
+
+    try {
+      if (typeof currentPage !== 'undefined' && currentPage === 'attendance') {
+        setTimeout(() => {
+          try {
+            if (typeof go === 'function') go('records');
+          } catch (_) {}
+        }, 0);
+      }
+    } catch (_) {}
   }
 
   function restoreAttendanceOptions() {
@@ -178,12 +223,14 @@
   }
 
   function filterAttendanceOptions() {
-    const role = roleNow();
-    if (role === 'owner' || role === 'boss' || role === 'manager') return;
-
     const select = document.getElementById('regionSelect');
     if (!select) return;
 
+    // Managers do not have Attendance at all.
+    if (roleNow() === 'manager') return;
+
+    // Apply the same blocked-region policy to EVERY Attendance user,
+    // including owner and boss.
     [...select.options].forEach(option => {
       if (!option.value || option.value === 'all') return;
 
@@ -196,31 +243,32 @@
   }
 
   function normalizeAttendanceSelection() {
-    const role = roleNow();
-    if (role === 'owner' || role === 'boss') return true;
-
     const select = document.getElementById('regionSelect');
     if (!select) return false;
 
     let code = select.value;
 
-    if (code === 'all' || !code) {
-      const first = firstAllowedAttendanceRegion();
-      if (!first) return false;
-      select.value = first;
-      code = first;
+    if (code && code !== 'all' && blockedAttendanceRegion(code)) {
+      const parent = parentAttendanceRegion(code);
+
+      if (parent && optionExists(parent) && !blockedAttendanceRegion(parent)) {
+        select.value = parent;
+        return true;
+      }
+    }
+
+    if (!code || code === 'all') {
+      const preferred = preferredAttendanceRegion();
+
+      if (!preferred) return false;
+      select.value = preferred;
+      return true;
     }
 
     if (!blockedAttendanceRegion(code)) return true;
 
-    const parent = parentAttendanceRegion(code);
+    const fallback = preferredAttendanceRegion();
 
-    if (parent && optionExists(parent)) {
-      select.value = parent;
-      return true;
-    }
-
-    const fallback = firstAllowedAttendanceRegion();
     if (fallback) {
       select.value = fallback;
       return true;
@@ -242,11 +290,10 @@
 
   function bindRegionSelect() {
     const select = document.getElementById('regionSelect');
-    if (!select || select.dataset.prizAttendanceV13Bound === '1') return;
-    select.dataset.prizAttendanceV13Bound = '1';
+    if (!select || select.dataset.prizAttendanceV14Bound === '1') return;
 
-    // CAPTURE: correct a blocked attendance region before the application's
-    // own onchange/renderPage logic sees it.
+    select.dataset.prizAttendanceV14Bound = '1';
+
     select.addEventListener('change', () => {
       try {
         if (typeof currentPage !== 'undefined' && currentPage === 'attendance') {
@@ -262,84 +309,225 @@
     }, true);
   }
 
-  function syncRoleMarker() {
-    const role = roleNow();
-    if (role) document.documentElement.dataset.prizRole = role;
-    else delete document.documentElement.dataset.prizRole;
-  }
+  /* =======================================================
+     PROFILE CARD
+     ======================================================= */
 
-  function ensureProfileAvatar() {
+  function ensureProfileStructure() {
     const card = document.getElementById('userCard');
     if (!card) return;
 
-    if (!card.querySelector('.priz-profile-avatar')) {
-      const avatar = document.createElement('span');
+    let avatar = card.querySelector(':scope > .priz-profile-avatar');
+
+    if (!avatar) {
+      avatar = document.createElement('span');
       avatar.className = 'priz-profile-avatar';
       avatar.setAttribute('aria-hidden', 'true');
-      avatar.innerHTML = '<b>P</b><i></i>';
+      avatar.innerHTML = '<i></i>';
       card.prepend(avatar);
+    }
+
+    let copy = card.querySelector(':scope > .priz-profile-copy');
+
+    if (!copy) {
+      copy = document.createElement('div');
+      copy.className = 'priz-profile-copy';
+
+      [...card.children].forEach(child => {
+        if (child === avatar || child === copy) return;
+        copy.appendChild(child);
+      });
+
+      card.appendChild(copy);
+    } else {
+      // shared-operator-account may repaint userCard.innerHTML.
+      // Move any newly created profile text back into the dedicated copy column.
+      [...card.children].forEach(child => {
+        if (child === avatar || child === copy) return;
+        copy.appendChild(child);
+      });
     }
   }
 
-  function injectV13Styles() {
-    if (document.getElementById('prizRoleUiV13Styles')) return;
+  /* =======================================================
+     ROLE MARKER / CSS
+     ======================================================= */
+
+  function syncRoleMarker() {
+    const role = roleNow();
+
+    if (role) {
+      document.documentElement.dataset.prizRole = role;
+    } else {
+      delete document.documentElement.dataset.prizRole;
+    }
+  }
+
+  function injectV14Styles() {
+    if (document.getElementById('prizRoleUiV14Styles')) return;
 
     const style = document.createElement('style');
-    style.id = 'prizRoleUiV13Styles';
+    style.id = 'prizRoleUiV14Styles';
+
     style.textContent = `
-      /* Manager: hide technical record ID BEFORE the dialog can paint. */
+      /* Manager: technical record ID must never paint. */
       html[data-priz-role="manager"] #viewDialogBody .dialog-head > div > h3{
         display:none!important;
       }
 
-      /* Manager: remove the redundant large manager banner above Records. */
+      /* Manager: remove redundant Manager / name / region banner. */
       html[data-priz-role="manager"] .manager-records-head{
         display:none!important;
       }
 
-      /* Stable fallback avatar. */
-      #userCard .priz-profile-avatar{
-        position:absolute!important;
-        left:14px!important;
-        top:16px!important;
-        width:42px!important;
-        height:42px!important;
+      /* Hide dialogs while their role-specific action set is being completed. */
+      html[data-priz-manager-dialog-preload="1"] #viewDialog[open],
+      html[data-priz-senior-dialog-preload="1"] #viewDialog[open]{
+        visibility:hidden!important;
+        opacity:0!important;
+        pointer-events:none!important;
+      }
+
+      /* Operator profile: real 2-column layout. */
+      #userCard.user-card{
+        position:relative!important;
+        display:grid!important;
+        grid-template-columns:48px minmax(0,1fr)!important;
+        grid-template-rows:auto!important;
+        align-items:start!important;
+        column-gap:14px!important;
+        row-gap:0!important;
+        padding:15px 13px!important;
+      }
+
+      #userCard > .priz-profile-avatar{
+        position:relative!important;
+        inset:auto!important;
+        grid-column:1!important;
+        grid-row:1!important;
+        width:44px!important;
+        height:44px!important;
+        min-width:44px!important;
+        min-height:44px!important;
         display:grid!important;
         place-items:center!important;
+        margin:0!important;
+        padding:0!important;
         border-radius:50%!important;
         overflow:visible!important;
+        color:#fff!important;
+        background:linear-gradient(145deg,#6333d7,#8a55f4)!important;
+        border:1px solid rgba(197,161,255,.51)!important;
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,.13),
+          0 0 24px rgba(124,58,237,.25)!important;
       }
 
-      #userCard .priz-profile-avatar > b{
-        display:none!important;
-      }
-
-      #userCard .priz-profile-avatar::before{
+      #userCard > .priz-profile-avatar::before{
         content:"P";
-        display:block;
         color:#fff;
         font-size:17px;
         line-height:1;
         font-weight:900;
       }
 
-      #userCard > span:not(.priz-profile-avatar){
+      #userCard > .priz-profile-avatar > i{
+        position:absolute!important;
+        right:-1px!important;
+        bottom:-1px!important;
+        width:10px!important;
+        height:10px!important;
+        border-radius:50%!important;
+        background:#28df70!important;
+        border:2px solid #141a29!important;
+        box-shadow:0 0 9px rgba(40,223,112,.6)!important;
+      }
+
+      #userCard > .priz-profile-copy{
+        grid-column:2!important;
+        grid-row:1!important;
+        min-width:0!important;
+        display:flex!important;
+        flex-direction:column!important;
+        align-items:flex-start!important;
+        justify-content:flex-start!important;
+        margin:0!important;
+        padding:0!important;
+      }
+
+      #userCard > .priz-profile-copy > b{
+        display:block!important;
+        width:100%!important;
+        margin:0 0 4px!important;
+        padding:0!important;
+        color:#fff!important;
+        font-size:12px!important;
+        line-height:1.28!important;
+        font-weight:900!important;
+        overflow-wrap:anywhere!important;
+      }
+
+      #userCard > .priz-profile-copy > span{
         position:static!important;
+        display:block!important;
         width:auto!important;
         height:auto!important;
         min-width:0!important;
         min-height:0!important;
         margin:0!important;
         padding:0!important;
+        color:#8f9ab1!important;
+        background:none!important;
         border:0!important;
         border-radius:0!important;
-        background:none!important;
         box-shadow:none!important;
         transform:none!important;
+        font-size:9.5px!important;
+        line-height:1.35!important;
+      }
+
+      #userCard > .priz-profile-copy > .role-pill{
+        margin-top:7px!important;
+      }
+
+      #userCard > .priz-profile-copy > .sync-pill{
+        margin-top:7px!important;
+      }
+
+      @media(min-width:1400px){
+        #userCard.user-card{
+          grid-template-columns:58px minmax(0,1fr)!important;
+          column-gap:17px!important;
+          padding:19px 16px!important;
+        }
+
+        #userCard > .priz-profile-avatar{
+          width:54px!important;
+          height:54px!important;
+          min-width:54px!important;
+          min-height:54px!important;
+        }
+
+        #userCard > .priz-profile-avatar::before{
+          font-size:20px!important;
+        }
+
+        #userCard > .priz-profile-copy > b{
+          font-size:15px!important;
+        }
+
+        #userCard > .priz-profile-copy > span{
+          font-size:12px!important;
+        }
       }
     `;
+
     document.head.appendChild(style);
   }
+
+  /* =======================================================
+     DELETE REQUEST
+     ======================================================= */
 
   async function refreshDeletionBadgeFast() {
     try {
@@ -357,11 +545,13 @@
 
   function ensureDeletionRequestDialog() {
     let d = document.getElementById('deletionRequestDialog');
+
     if (d) return d;
 
     d = document.createElement('dialog');
     d.id = 'deletionRequestDialog';
     d.className = 'dialog';
+
     d.innerHTML = `
       <form method="dialog" class="dialog-card delreq-dialog-card" id="deletionRequestForm">
         <div class="dialog-head">
@@ -371,17 +561,28 @@
           </div>
           <button class="close-x" value="cancel">×</button>
         </div>
-        <p class="muted small">Коротко объясните руководителю, почему запись нужно удалить. Минимум 5 символов.</p>
+
+        <p class="muted small">
+          Коротко объясните руководителю, почему запись нужно удалить. Минимум 5 символов.
+        </p>
+
         <label>
           Причина
-          <textarea id="deletionRequestReason" maxlength="1000"
-                    placeholder="Например: запись внесена дважды" required></textarea>
+          <textarea id="deletionRequestReason"
+                    maxlength="1000"
+                    placeholder="Например: запись внесена дважды"
+                    required></textarea>
         </label>
+
         <div class="dialog-actions">
           <button value="cancel" class="btn ghost">Отмена</button>
-          <button type="button" id="deletionRequestSend" class="btn danger">Отправить руководителю</button>
+          <button type="button" id="deletionRequestSend" class="btn danger">
+            Отправить руководителю
+          </button>
         </div>
-      </form>`;
+      </form>
+    `;
+
     document.body.appendChild(d);
     return d;
   }
@@ -390,10 +591,12 @@
     const d = ensureDeletionRequestDialog();
     const reason = document.getElementById('deletionRequestReason');
     const send = document.getElementById('deletionRequestSend');
+
     if (!reason || !send) return;
 
     reason.value = '';
     d.showModal();
+
     setTimeout(() => reason.focus(), 0);
 
     send.onclick = async () => {
@@ -411,14 +614,17 @@
           p_record_id: recordId,
           p_reason: text
         });
+
         if (error) throw error;
 
         d.close();
         toast('Заявка отправлена руководителю');
+
         window.prizInvalidateNavigationCache?.(['deletionRequests']);
         await refreshDeletionBadgeFast();
       } catch (e) {
         const msg = String(e?.message || e || '');
+
         toast(
           msg.includes('active request')
             ? 'На эту запись уже есть активная заявка'
@@ -431,21 +637,27 @@
     };
   }
 
-  function installImmediateSeniorDeleteButton(recordId) {
-    if (roleNow() !== 'senior') return false;
+  function installSeniorDeleteButton(recordId) {
+    if (roleNow() !== 'senior') return true;
 
     const root = document.getElementById('viewDialogBody');
     const actions = root?.querySelector('.dialog-actions');
+
     if (!actions) return false;
 
     let cached = null;
-    try { cached = (recordCache || []).find(x => x.id === recordId) || null; } catch (_) {}
+
+    try {
+      cached = (recordCache || []).find(x => x.id === recordId) || null;
+    } catch (_) {}
 
     const isEvaluation =
       cached?.kind === 'eval' ||
+      cached?.kind === 'evaluation' ||
       !!root.querySelector('.badge.eval');
 
     if (isEvaluation) return true;
+
     if (actions.querySelector('.delreq-request-button')) return true;
 
     const btn = document.createElement('button');
@@ -453,47 +665,65 @@
     btn.className = 'btn danger delreq-request-button';
     btn.textContent = 'Запросить удаление';
     btn.onclick = () => openDeletionRequestFast(recordId);
+
     actions.insertBefore(btn, actions.firstChild);
+
     return true;
   }
 
-  function watchSeniorRecordDialog(recordId) {
-    if (roleNow() !== 'senior') return () => {};
+  function waitForSeniorFinalDialog(recordId, timeoutMs=1800) {
+    if (roleNow() !== 'senior') return Promise.resolve();
 
-    const root = document.getElementById('viewDialogBody');
-    if (!root) return () => {};
+    return new Promise(resolve => {
+      if (installSeniorDeleteButton(recordId)) {
+        resolve();
+        return;
+      }
 
-    let done = false;
+      const root = document.getElementById('viewDialogBody');
 
-    const observer = new MutationObserver(() => {
-      if (installImmediateSeniorDeleteButton(recordId)) {
+      if (!root) {
+        resolve();
+        return;
+      }
+
+      let done = false;
+
+      const finish = () => {
+        if (done) return;
         done = true;
         observer.disconnect();
-      }
+        clearTimeout(timer);
+        resolve();
+      };
+
+      const observer = new MutationObserver(() => {
+        if (installSeniorDeleteButton(recordId)) finish();
+      });
+
+      observer.observe(root, { childList:true, subtree:true });
+
+      const timer = setTimeout(finish, timeoutMs);
     });
-
-    observer.observe(root, { childList:true, subtree:true });
-
-    if (installImmediateSeniorDeleteButton(recordId)) {
-      done = true;
-      observer.disconnect();
-    }
-
-    const timer = setTimeout(() => {
-      if (!done) observer.disconnect();
-    }, 5000);
-
-    return () => {
-      clearTimeout(timer);
-      observer.disconnect();
-    };
   }
+
+  /* =======================================================
+     MANAGER
+     ======================================================= */
 
   async function managerRecordPreflight(id) {
     let cached = null;
-    try { cached = (recordCache || []).find(x => x.id === id) || null; } catch (_) {}
 
-    if (cached) return { exists:true, regionId:cached.regionId || null };
+    try {
+      cached = (recordCache || []).find(x => x.id === id) || null;
+    } catch (_) {}
+
+    if (cached) {
+      return {
+        exists:true,
+        regionId:cached.regionId || null
+      };
+    }
 
     try {
       const { data, error } = await sb
@@ -503,22 +733,52 @@
         .maybeSingle();
 
       if (error) throw error;
-      return { exists:!!data, regionId:data?.region_id || null };
+
+      return {
+        exists:!!data,
+        regionId:data?.region_id || null
+      };
     } catch (err) {
       console.warn('Manager record preflight failed:', err);
-      return { exists:true, regionId:null };
+
+      return {
+        exists:true,
+        regionId:null
+      };
     }
   }
 
-  /* ------- SHOW APP ------- */
-  const baseShowApp = typeof showApp === 'function' ? showApp : window.showApp;
+  function stripManagerTechnicalHeading() {
+    if (roleNow() !== 'manager') return;
+
+    const head = document.querySelector('#viewDialogBody .dialog-head');
+    const h3 = head?.querySelector(':scope > div > h3');
+
+    if (h3) {
+      h3.remove();
+    }
+  }
+
+  /* =======================================================
+     APP / SHELL
+     ======================================================= */
+
+  const baseShowApp =
+    typeof showApp === 'function'
+      ? showApp
+      : window.showApp;
 
   if (typeof baseShowApp === 'function') {
     const fixedShowApp = function (...args) {
       syncRoleMarker();
 
-      try { window.prizInvalidateNavigationCache?.('all'); } catch (_) {}
-      try { window.prizInvalidateReadCache?.('all'); } catch (_) {}
+      try {
+        window.prizInvalidateNavigationCache?.('all');
+      } catch (_) {}
+
+      try {
+        window.prizInvalidateReadCache?.('all');
+      } catch (_) {}
 
       if (roleNow() === 'manager') {
         managerLoginGuardUntil = Date.now() + 8000;
@@ -528,7 +788,7 @@
 
       setTimeout(() => {
         syncRoleMarker();
-        ensureProfileAvatar();
+        ensureProfileStructure();
         bindRegionSelect();
         syncAttendanceNav();
         syncAttendancePageOptions();
@@ -541,15 +801,18 @@
     window.showApp = fixedShowApp;
   }
 
-  /* ------- BUILD SHELL ------- */
-  const baseBuildShell = typeof buildShell === 'function' ? buildShell : window.buildShell;
+  const baseBuildShell =
+    typeof buildShell === 'function'
+      ? buildShell
+      : window.buildShell;
 
   if (typeof baseBuildShell === 'function') {
     const fixedBuildShell = function (...args) {
       syncRoleMarker();
+
       const result = baseBuildShell.apply(this, args);
 
-      ensureProfileAvatar();
+      ensureProfileStructure();
       bindRegionSelect();
       syncAttendanceNav();
       syncAttendancePageOptions();
@@ -561,8 +824,10 @@
     window.buildShell = fixedBuildShell;
   }
 
-  /* ------- GO ------- */
-  const baseGo = typeof go === 'function' ? go : window.go;
+  const baseGo =
+    typeof go === 'function'
+      ? go
+      : window.go;
 
   if (typeof baseGo === 'function') {
     const fixedGo = function (page, ...rest) {
@@ -574,7 +839,9 @@
         }
       }
 
-      if (page !== 'attendance') restoreAttendanceOptions();
+      if (page !== 'attendance') {
+        restoreAttendanceOptions();
+      }
 
       const result = baseGo.call(this, page, ...rest);
 
@@ -590,15 +857,29 @@
     window.go = fixedGo;
   }
 
-  /* ------- VIEW RECORD ------- */
-  const baseViewRecord = typeof viewRecord === 'function' ? viewRecord : window.viewRecord;
+  /* =======================================================
+     VIEW RECORD — NO FLASH
+     ======================================================= */
+
+  const baseViewRecord =
+    typeof viewRecord === 'function'
+      ? viewRecord
+      : window.viewRecord;
 
   if (typeof baseViewRecord === 'function') {
     const fixedViewRecord = async function (id) {
-      const stopSeniorWatch = watchSeniorRecordDialog(id);
+      const role = roleNow();
+
+      if (role === 'senior') {
+        document.documentElement.dataset.prizSeniorDialogPreload = '1';
+      }
+
+      if (role === 'manager') {
+        document.documentElement.dataset.prizManagerDialogPreload = '1';
+      }
 
       try {
-        if (roleNow() === 'manager') {
+        if (role === 'manager') {
           const check = await managerRecordPreflight(id);
 
           if (!check.exists) {
@@ -617,16 +898,38 @@
 
               const select = document.getElementById('regionSelect');
 
-              if (code && select && [...select.options].some(o => o.value === code)) {
+              if (
+                code &&
+                select &&
+                [...select.options].some(o => o.value === code)
+              ) {
                 select.value = code;
               }
             } catch (_) {}
           }
         }
 
-        return await baseViewRecord.apply(this, arguments);
+        const result = await baseViewRecord.apply(this, arguments);
+
+        if (role === 'manager') {
+          stripManagerTechnicalHeading();
+        }
+
+        if (role === 'senior') {
+          await waitForSeniorFinalDialog(id);
+        }
+
+        return result;
       } finally {
-        setTimeout(stopSeniorWatch, 1200);
+        if (role === 'manager') {
+          stripManagerTechnicalHeading();
+          delete document.documentElement.dataset.prizManagerDialogPreload;
+        }
+
+        if (role === 'senior') {
+          installSeniorDeleteButton(id);
+          delete document.documentElement.dataset.prizSeniorDialogPreload;
+        }
       }
     };
 
@@ -634,32 +937,57 @@
     window.viewRecord = fixedViewRecord;
   }
 
-  /* ------- OBSERVERS ------- */
+  /* =======================================================
+     OBSERVERS
+     ======================================================= */
+
   const userCard = document.getElementById('userCard');
+
   if (userCard) {
-    const profileObserver = new MutationObserver(() => ensureProfileAvatar());
-    profileObserver.observe(userCard, { childList:true, subtree:false });
+    let profileSyncing = false;
+
+    const profileObserver = new MutationObserver(() => {
+      if (profileSyncing) return;
+
+      profileSyncing = true;
+
+      requestAnimationFrame(() => {
+        profileSyncing = false;
+        ensureProfileStructure();
+      });
+    });
+
+    profileObserver.observe(userCard, {
+      childList:true,
+      subtree:false
+    });
   }
 
   const nav = document.getElementById('nav');
+
   if (nav) {
     let navSyncing = false;
 
     const navObserver = new MutationObserver(() => {
       if (navSyncing) return;
+
       navSyncing = true;
+
       requestAnimationFrame(() => {
         navSyncing = false;
         syncAttendanceNav();
       });
     });
 
-    navObserver.observe(nav, { childList:true, subtree:false });
+    navObserver.observe(nav, {
+      childList:true,
+      subtree:false
+    });
   }
 
-  injectV13Styles();
+  injectV14Styles();
   syncRoleMarker();
-  ensureProfileAvatar();
+  ensureProfileStructure();
   bindRegionSelect();
   syncAttendanceNav();
   syncAttendancePageOptions();
