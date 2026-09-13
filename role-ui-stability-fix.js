@@ -1,8 +1,8 @@
 (() => {
-  // PRIZ Control — ROLE / UI STABILITY v14
+  // PRIZ Control — ROLE / UI STABILITY v15
   // Replaces v13. Load LAST, after priz-exact-ui.js.
-  if (window.__prizRoleUiStabilityV14Installed) return;
-  window.__prizRoleUiStabilityV14Installed = true;
+  if (window.__prizRoleUiStabilityV15Installed) return;
+  window.__prizRoleUiStabilityV15Installed = true;
 
   const BLOCKED_ATTENDANCE = new Set([
     'chernihiv','chernigov',
@@ -290,9 +290,9 @@
 
   function bindRegionSelect() {
     const select = document.getElementById('regionSelect');
-    if (!select || select.dataset.prizAttendanceV14Bound === '1') return;
+    if (!select || select.dataset.prizAttendanceV15Bound === '1') return;
 
-    select.dataset.prizAttendanceV14Bound = '1';
+    select.dataset.prizAttendanceV15Bound = '1';
 
     select.addEventListener('change', () => {
       try {
@@ -323,8 +323,17 @@
       avatar = document.createElement('span');
       avatar.className = 'priz-profile-avatar';
       avatar.setAttribute('aria-hidden', 'true');
-      avatar.innerHTML = '<i></i>';
       card.prepend(avatar);
+    }
+
+    // Exact UI may have created <b>P</b><i></i> earlier.
+    // Keep ONE visual P only: the CSS ::before glyph + online dot.
+    if (
+      avatar.querySelector('b') ||
+      avatar.childNodes.length !== 1 ||
+      avatar.firstElementChild?.tagName !== 'I'
+    ) {
+      avatar.innerHTML = '<i></i>';
     }
 
     let copy = card.querySelector(':scope > .priz-profile-copy');
@@ -364,10 +373,10 @@
   }
 
   function injectV14Styles() {
-    if (document.getElementById('prizRoleUiV14Styles')) return;
+    if (document.getElementById('prizRoleUiV15Styles')) return;
 
     const style = document.createElement('style');
-    style.id = 'prizRoleUiV14Styles';
+    style.id = 'prizRoleUiV15Styles';
 
     style.textContent = `
       /* Manager: technical record ID must never paint. */
@@ -400,6 +409,49 @@
         padding:15px 13px!important;
       }
 
+      /* Shared operator account can replace userCard.innerHTML in one operation.
+         These direct-child rules make that intermediate DOM safe immediately. */
+      #userCard.user-card > b,
+      #userCard.user-card > span:not(.priz-profile-avatar),
+      #userCard.user-card > .role-pill,
+      #userCard.user-card > .sync-pill{
+        grid-column:2!important;
+        position:static!important;
+        inset:auto!important;
+        width:auto!important;
+        height:auto!important;
+        min-width:0!important;
+        min-height:0!important;
+        transform:none!important;
+      }
+
+      #userCard.user-card > b{
+        grid-row:1!important;
+        margin:0 0 4px!important;
+        align-self:start!important;
+      }
+
+      #userCard.user-card > span:not(.priz-profile-avatar){
+        margin:23px 0 0!important;
+        align-self:start!important;
+        color:#8f9ab1!important;
+        background:none!important;
+        border:0!important;
+        box-shadow:none!important;
+      }
+
+      #userCard.user-card > .role-pill{
+        margin-top:43px!important;
+        align-self:start!important;
+        justify-self:start!important;
+      }
+
+      #userCard.user-card > .sync-pill{
+        margin-top:67px!important;
+        align-self:start!important;
+        justify-self:start!important;
+      }
+
       #userCard > .priz-profile-avatar{
         position:relative!important;
         inset:auto!important;
@@ -429,6 +481,16 @@
         font-size:17px;
         line-height:1;
         font-weight:900;
+      }
+
+      #userCard > .priz-profile-avatar{
+        font-size:0!important;
+        text-indent:0!important;
+      }
+
+      #userCard > .priz-profile-avatar > b,
+      #userCard > .priz-profile-avatar > span{
+        display:none!important;
       }
 
       #userCard > .priz-profile-avatar > i{
@@ -949,11 +1011,14 @@
     const profileObserver = new MutationObserver(() => {
       if (profileSyncing) return;
 
+      // MutationObserver runs before the next paint.
+      // Repair shared-account innerHTML immediately so there is no visible
+      // frame with region/name on top of the avatar.
       profileSyncing = true;
+      ensureProfileStructure();
 
-      requestAnimationFrame(() => {
+      queueMicrotask(() => {
         profileSyncing = false;
-        ensureProfileStructure();
       });
     });
 
