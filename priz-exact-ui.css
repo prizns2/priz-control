@@ -1419,3 +1419,59 @@ tr.clickable:hover{
     opacity:.20!important;
   }
 }
+
+
+/* ==========================================================
+   v10 — SEAMLESS TOP
+   Removes the visible top seam / strip without changing layout.
+   ========================================================== */
+
+html,
+body,
+#appView,
+.app,
+.main,
+.topbar{
+  border-top:0!important;
+  outline:0!important;
+}
+
+.topbar{
+  background:transparent!important;
+  border:0!important;
+  border-bottom:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+
+/* Keep the purple ambience on the page itself instead of a separate header layer. */
+.main{
+  background:
+    radial-gradient(ellipse at 62% -3%,rgba(126,68,246,.24),transparent 35%),
+    radial-gradient(ellipse at 91% 8%,rgba(91,48,194,.08),transparent 24%),
+    linear-gradient(180deg,#090c16 0%,#080b14 36%,#070911 100%)!important;
+}
+
+/* Cover any 3–4px in-page separator left by the shell/browser rendering edge. */
+#appView:not(.hidden)::before{
+  content:"";
+  position:fixed;
+  left:0;
+  right:0;
+  top:0;
+  height:5px;
+  z-index:9998;
+  pointer-events:none;
+  background:#090b14;
+}
+
+/* Make the visual transition under the header continuous. */
+#prizPageHost.content{
+  background:transparent!important;
+}
+
+.priz-topbar-inner{
+  border:0!important;
+  box-shadow:none!important;
+}
