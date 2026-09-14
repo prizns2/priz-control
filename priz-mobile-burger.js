@@ -114,24 +114,3 @@
 
   apply();
 })();
-function syncLoginMode() {
-  const loginView = document.getElementById('loginView');
-  if (!loginView) return;
-
-  const isVisible = loginView.offsetParent !== null &&
-    getComputedStyle(loginView).display !== 'none' &&
-    !loginView.classList.contains('hidden');
-
-  document.body.classList.toggle('priz-login-active', isVisible);
-}
-
-window.addEventListener('load', syncLoginMode);
-window.addEventListener('resize', syncLoginMode);
-document.addEventListener('DOMContentLoaded', syncLoginMode);
-
-new MutationObserver(syncLoginMode).observe(document.documentElement, {
-  childList: true,
-  subtree: true,
-  attributes: true,
-  attributeFilter: ['class', 'style']
-});

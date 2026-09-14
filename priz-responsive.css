@@ -2691,230 +2691,286 @@ body.priz-burger-mode.priz-burger-open #prizBurgerBackdrop{
     grid-template-columns:1fr!important;
   }
 }
+
+
 /* =========================================================
-   PRIZ Control — MOBILE HOTFIX v20
-   fixes:
-   1) login screen hides app shell
-   2) filters/date inputs stop overflowing on phone
-   3) modal close button stays visible
+   PRIZ CONTROL — MOBILE / LOGIN STABILITY v21
+   Clean replacement for the failed v20 hotfix.
    ========================================================= */
 
-/* ---------- 1. LOGIN SCREEN ---------- */
+/* ---------- APP VISIBILITY: NEVER LET RESPONSIVE OVERRIDE .hidden ---------- */
 
-/* Пока виден loginView — скрываем рабочую оболочку */
-body.priz-login-active .app,
-body.priz-login-active #appView,
-body.priz-login-active .sidebar,
-body.priz-login-active .main {
-  display: none !important;
+#appView.hidden,
+#loginView.hidden,
+#mfaView.hidden{
+  display:none!important;
 }
 
-body.priz-login-active #loginView,
-body.priz-login-active .login-view {
-  display: flex !important;
-  min-height: 100dvh !important;
-  width: 100% !important;
+/* Burger/mobile rules from earlier versions may set .app display:block.
+   Only do that when the app is actually visible. */
+body.priz-burger-mode #appView:not(.hidden){
+  display:block!important;
 }
 
-body.priz-login-active {
-  overflow: hidden !important;
+body.priz-burger-mode #appView.hidden{
+  display:none!important;
 }
 
-/* ---------- 2. PHONE LAYOUT ---------- */
+/* ---------- LOGIN: RESTORE ORIGINAL CENTERING ---------- */
 
-@media (max-width: 700px) {
-  html, body {
-    overflow-x: hidden !important;
+#loginView:not(.hidden){
+  display:grid!important;
+  place-items:center!important;
+  width:100%!important;
+  min-height:100vh!important;
+  padding:32px!important;
+}
+
+#loginView:not(.hidden) .login-shell{
+  width:min(440px,100%)!important;
+  margin:auto!important;
+}
+
+@media (max-width:700px){
+  #loginView:not(.hidden){
+    min-height:100dvh!important;
+    padding:
+      max(14px,env(safe-area-inset-top))
+      14px
+      max(14px,env(safe-area-inset-bottom))!important;
   }
 
-  .main,
-  #prizPageHost,
-  .content,
-  .panel,
-  .records-page,
-  .records-toolbar,
-  .records-filters,
-  .filter-row,
-  .toolbar {
-    min-width: 0 !important;
-    max-width: 100% !important;
+  #loginView:not(.hidden) .login-shell{
+    width:min(100%,440px)!important;
+  }
+}
+
+/* ---------- RECORDS TOOLBAR: REAL MOBILE STRUCTURE ---------- */
+
+@media (max-width:700px){
+  #content .records-toolbar{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    gap:10px!important;
+    overflow:hidden!important;
   }
 
-  /* Верхняя строка: регион + добавить */
-  .top-actions {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
+  #content .records-toolbar > *{
+    display:block;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    min-inline-size:0!important;
+    max-inline-size:100%!important;
+    box-sizing:border-box!important;
+    margin:0!important;
   }
 
-  .top-actions > * {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
+  /* fPerson is intentionally hidden by records-view-v5. */
+  #content .records-toolbar #fPerson{
+    display:none!important;
+  }
+
+  /* iOS Safari gives date inputs a stubborn intrinsic width.
+     Target the actual PRIZ Control date filters directly. */
+  #content .records-toolbar #fFrom,
+  #content .records-toolbar #fTo{
+    display:block!important;
+    position:relative!important;
+    inline-size:100%!important;
+    width:100%!important;
+    min-inline-size:0!important;
+    min-width:0!important;
+    max-inline-size:100%!important;
+    max-width:100%!important;
+    height:46px!important;
+    min-height:46px!important;
+    padding:0 44px 0 14px!important;
+    margin:0!important;
+    border-radius:12px!important;
+    box-sizing:border-box!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+    -webkit-appearance:none!important;
+    appearance:none!important;
+    font-size:16px!important;
+    line-height:46px!important;
+    background-position:right 14px center!important;
+    background-size:18px 18px!important;
+  }
+
+  #content .records-toolbar #fFrom::-webkit-date-and-time-value,
+  #content .records-toolbar #fTo::-webkit-date-and-time-value{
+    min-width:0!important;
+    width:auto!important;
+    padding:0!important;
+    margin:0!important;
+    text-align:left!important;
+  }
+
+  #content .records-toolbar #fFrom::-webkit-calendar-picker-indicator,
+  #content .records-toolbar #fTo::-webkit-calendar-picker-indicator{
+    position:absolute!important;
+    right:0!important;
+    top:0!important;
+    width:44px!important;
+    height:46px!important;
+    margin:0!important;
+    padding:0!important;
+    opacity:0!important;
+    cursor:pointer!important;
+  }
+
+  #content .records-toolbar #exportExcel,
+  #content .records-toolbar #clearFilters{
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    min-height:46px!important;
+  }
+
+  /* Keep table horizontal scrolling INSIDE records area. */
+  #content #recordsArea,
+  #content #recordsArea .table-wrap{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+  }
+
+  #content #recordsArea .table-wrap{
+    overflow-x:auto!important;
+    overscroll-behavior-inline:contain!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+}
+
+/* ---------- MOBILE VIEW DIALOG / CLOSE BUTTON ---------- */
+
+@media (max-width:700px){
+  #viewDialog,
+  #recordDialog,
+  #storeDialog,
+  #userDialog{
+    width:calc(100vw - 16px)!important;
+    max-width:calc(100vw - 16px)!important;
+    max-height:calc(100dvh - 16px)!important;
+    margin:auto!important;
+    padding:0!important;
+    overflow:visible!important;
+  }
+
+  #viewDialog .dialog-card,
+  #recordDialog .dialog-card,
+  #storeDialog .dialog-card,
+  #userDialog .dialog-card{
+    width:100%!important;
+    max-width:100%!important;
+    max-height:calc(100dvh - 16px)!important;
+    margin:0!important;
+    padding:14px!important;
+    overflow:auto!important;
+    overscroll-behavior:contain!important;
+    box-sizing:border-box!important;
+  }
+
+  #viewDialog .dialog-head,
+  #recordDialog .dialog-head,
+  #storeDialog .dialog-head,
+  #userDialog .dialog-head{
+    position:sticky!important;
+    top:-14px!important;
+    z-index:40!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) 44px!important;
+    align-items:start!important;
+    gap:10px!important;
+    margin:-14px -14px 14px!important;
+    padding:
+      max(14px,env(safe-area-inset-top))
+      14px
+      12px!important;
+    background:linear-gradient(180deg,#151b2d 88%,rgba(21,27,45,.96))!important;
+    border-bottom:1px solid rgba(108,119,154,.22)!important;
+  }
+
+  #viewDialog .dialog-head > div,
+  #recordDialog .dialog-head > div,
+  #storeDialog .dialog-head > div,
+  #userDialog .dialog-head > div{
+    min-width:0!important;
+  }
+
+  #viewDialog .dialog-head h3,
+  #recordDialog .dialog-head h3,
+  #storeDialog .dialog-head h3,
+  #userDialog .dialog-head h3{
+    min-width:0!important;
+    max-width:100%!important;
+    overflow-wrap:anywhere!important;
+    word-break:break-word!important;
+  }
+
+  /* Actual close control used by PRIZ Control. */
+  #viewDialog .close-x,
+  #recordDialog .close-x,
+  #storeDialog .close-x,
+  #userDialog .close-x{
+    position:sticky!important;
+    top:0!important;
+    grid-column:2!important;
+    justify-self:end!important;
+    align-self:start!important;
+    z-index:60!important;
+    display:grid!important;
+    place-items:center!important;
+    width:44px!important;
+    height:44px!important;
+    min-width:44px!important;
+    min-height:44px!important;
+    margin:0!important;
+    padding:0!important;
+    border-radius:13px!important;
+    flex:0 0 44px!important;
+    visibility:visible!important;
+    opacity:1!important;
+  }
+
+  .media-grid{
+    grid-template-columns:1fr!important;
+  }
+
+  .media-card{
+    min-width:0!important;
+    width:100%!important;
+    max-width:100%!important;
+  }
+
+  .dialog-actions{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:10px!important;
+  }
+
+  .dialog-actions > .btn{
+    width:100%!important;
+    max-width:100%!important;
+  }
+}
+
+/* ---------- VERY NARROW PHONES ---------- */
+
+@media (max-width:430px){
+  .top-actions{
+    grid-template-columns:minmax(0,1fr) minmax(92px,30vw)!important;
   }
 
   .select.compact,
-  #quickAddBtn {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  /* Все фильтры в 1 колонку */
-  .records-toolbar,
-  .records-filters,
-  .filter-row,
-  .toolbar {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-  }
-
-  .records-toolbar > *,
-  .records-filters > *,
-  .filter-row > *,
-  .toolbar > * {
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-  }
-
-  input,
-  select,
-  textarea,
-  .btn {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  /* Поля даты */
-  input[type="date"],
-  .date-input,
-  .date-field {
-    padding-right: 42px !important;
-    min-width: 0 !important;
-    background-position: right 12px center !important;
-  }
-
-  /* Excel / Сбросить */
-  .records-actions,
-  .toolbar-actions {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-  }
-
-  .records-actions .btn,
-  .toolbar-actions .btn {
-    width: 100% !important;
-  }
-
-  /* Таблица */
-  .table-wrap,
-  .records-table-wrap {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-}
-
-/* ---------- 3. MODAL / CARD VIEW ---------- */
-
-@media (max-width: 700px) {
-  .dialog,
-  .modal,
-  .overlay {
-    padding:
-      max(10px, env(safe-area-inset-top))
-      10px
-      max(14px, env(safe-area-inset-bottom))
-      10px !important;
-    box-sizing: border-box !important;
-  }
-
-  .dialog-card,
-  .modal-card,
-  .record-modal,
-  .preview-card {
-    position: relative !important;
-    width: calc(100vw - 20px) !important;
-    max-width: calc(100vw - 20px) !important;
-    max-height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
-    margin: 0 auto !important;
-    padding: 14px !important;
-    border-radius: 18px !important;
-    overflow: auto !important;
-    box-sizing: border-box !important;
-  }
-
-  /* Кнопка закрытия всегда видна */
-  .dialog-close,
-  .modal-close,
-  .record-close,
-  .preview-close,
-  .close-btn {
-    position: sticky !important;
-    top: 0 !important;
-    margin-left: auto !important;
-    right: 0 !important;
-    z-index: 20 !important;
-    width: 44px !important;
-    height: 44px !important;
-    min-width: 44px !important;
-    min-height: 44px !important;
-    border-radius: 14px !important;
-    flex: 0 0 44px !important;
-  }
-
-  /* Верх модалки */
-  .dialog-head,
-  .modal-head,
-  .preview-head {
-    display: grid !important;
-    grid-template-columns: 1fr auto !important;
-    gap: 10px !important;
-    align-items: start !important;
-  }
-
-  .dialog-head h3,
-  .modal-head h3,
-  .preview-head h3 {
-    font-size: 18px !important;
-    line-height: 1.2 !important;
-    word-break: break-word !important;
-  }
-
-  /* Медиа внутри */
-  .media-grid,
-  .record-media,
-  .preview-media {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 12px !important;
-  }
-
-  .media-grid > *,
-  .record-media > *,
-  .preview-media > * {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  /* Нижние кнопки модалки */
-  .dialog-actions,
-  .modal-actions,
-  .preview-actions {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-    position: sticky !important;
-    bottom: 0 !important;
-    background: linear-gradient(180deg, rgba(5,10,24,0), rgba(5,10,24,.96) 22%) !important;
-    padding-top: 10px !important;
-  }
-
-  .dialog-actions .btn,
-  .modal-actions .btn,
-  .preview-actions .btn {
-    width: 100% !important;
+  #quickAddBtn{
+    min-width:0!important;
+    width:100%!important;
   }
 }
