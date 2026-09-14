@@ -2974,3 +2974,88 @@ body.priz-burger-mode #appView.hidden{
     width:100%!important;
   }
 }
+
+
+/* =========================================================
+   PRIZ CONTROL — DESKTOP DIALOG STABILITY v22
+   Fixes dialog-card being wider than its <dialog>.
+   ========================================================= */
+
+@media (min-width:981px){
+  #recordDialog,
+  #viewDialog,
+  #storeDialog,
+  #userDialog{
+    width:min(1100px,94vw)!important;
+    max-width:94vw!important;
+    padding:0!important;
+    overflow:visible!important;
+  }
+
+  #confirmDialog{
+    width:min(430px,92vw)!important;
+    max-width:92vw!important;
+    padding:0!important;
+    overflow:visible!important;
+  }
+
+  #recordDialogBody,
+  #viewDialogBody,
+  #storeDialogBody,
+  #userDialogBody{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+  }
+
+  #recordDialog .dialog-card,
+  #viewDialog .dialog-card,
+  #storeDialog .dialog-card,
+  #userDialog .dialog-card,
+  #confirmDialog .dialog-card{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    margin:0!important;
+    box-sizing:border-box!important;
+    overflow-x:hidden!important;
+  }
+
+  #recordDialog .form-grid,
+  #viewDialog .detail-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+
+  #recordDialog .money-grid{
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  }
+
+  #recordDialog .quick-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  }
+
+  #recordDialog .media-edit-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+
+  #recordDialog .form-grid > *,
+  #recordDialog .money-grid > *,
+  #recordDialog .quick-grid > *,
+  #recordDialog .media-edit-grid > *,
+  #viewDialog .detail-grid > *{
+    min-width:0!important;
+    max-width:100%!important;
+  }
+
+  #recordDialog input,
+  #recordDialog select,
+  #recordDialog textarea,
+  #recordDialog .money-wrap,
+  #viewDialog input,
+  #viewDialog select,
+  #viewDialog textarea{
+    min-width:0!important;
+    max-width:100%!important;
+    box-sizing:border-box!important;
+  }
+}
