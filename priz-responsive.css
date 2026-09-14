@@ -2691,3 +2691,230 @@ body.priz-burger-mode.priz-burger-open #prizBurgerBackdrop{
     grid-template-columns:1fr!important;
   }
 }
+/* =========================================================
+   PRIZ Control — MOBILE HOTFIX v20
+   fixes:
+   1) login screen hides app shell
+   2) filters/date inputs stop overflowing on phone
+   3) modal close button stays visible
+   ========================================================= */
+
+/* ---------- 1. LOGIN SCREEN ---------- */
+
+/* Пока виден loginView — скрываем рабочую оболочку */
+body.priz-login-active .app,
+body.priz-login-active #appView,
+body.priz-login-active .sidebar,
+body.priz-login-active .main {
+  display: none !important;
+}
+
+body.priz-login-active #loginView,
+body.priz-login-active .login-view {
+  display: flex !important;
+  min-height: 100dvh !important;
+  width: 100% !important;
+}
+
+body.priz-login-active {
+  overflow: hidden !important;
+}
+
+/* ---------- 2. PHONE LAYOUT ---------- */
+
+@media (max-width: 700px) {
+  html, body {
+    overflow-x: hidden !important;
+  }
+
+  .main,
+  #prizPageHost,
+  .content,
+  .panel,
+  .records-page,
+  .records-toolbar,
+  .records-filters,
+  .filter-row,
+  .toolbar {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Верхняя строка: регион + добавить */
+  .top-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .top-actions > * {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .select.compact,
+  #quickAddBtn {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Все фильтры в 1 колонку */
+  .records-toolbar,
+  .records-filters,
+  .filter-row,
+  .toolbar {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .records-toolbar > *,
+  .records-filters > *,
+  .filter-row > *,
+  .toolbar > * {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  input,
+  select,
+  textarea,
+  .btn {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Поля даты */
+  input[type="date"],
+  .date-input,
+  .date-field {
+    padding-right: 42px !important;
+    min-width: 0 !important;
+    background-position: right 12px center !important;
+  }
+
+  /* Excel / Сбросить */
+  .records-actions,
+  .toolbar-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .records-actions .btn,
+  .toolbar-actions .btn {
+    width: 100% !important;
+  }
+
+  /* Таблица */
+  .table-wrap,
+  .records-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+
+/* ---------- 3. MODAL / CARD VIEW ---------- */
+
+@media (max-width: 700px) {
+  .dialog,
+  .modal,
+  .overlay {
+    padding:
+      max(10px, env(safe-area-inset-top))
+      10px
+      max(14px, env(safe-area-inset-bottom))
+      10px !important;
+    box-sizing: border-box !important;
+  }
+
+  .dialog-card,
+  .modal-card,
+  .record-modal,
+  .preview-card {
+    position: relative !important;
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    margin: 0 auto !important;
+    padding: 14px !important;
+    border-radius: 18px !important;
+    overflow: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Кнопка закрытия всегда видна */
+  .dialog-close,
+  .modal-close,
+  .record-close,
+  .preview-close,
+  .close-btn {
+    position: sticky !important;
+    top: 0 !important;
+    margin-left: auto !important;
+    right: 0 !important;
+    z-index: 20 !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    border-radius: 14px !important;
+    flex: 0 0 44px !important;
+  }
+
+  /* Верх модалки */
+  .dialog-head,
+  .modal-head,
+  .preview-head {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    gap: 10px !important;
+    align-items: start !important;
+  }
+
+  .dialog-head h3,
+  .modal-head h3,
+  .preview-head h3 {
+    font-size: 18px !important;
+    line-height: 1.2 !important;
+    word-break: break-word !important;
+  }
+
+  /* Медиа внутри */
+  .media-grid,
+  .record-media,
+  .preview-media {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .media-grid > *,
+  .record-media > *,
+  .preview-media > * {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Нижние кнопки модалки */
+  .dialog-actions,
+  .modal-actions,
+  .preview-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    position: sticky !important;
+    bottom: 0 !important;
+    background: linear-gradient(180deg, rgba(5,10,24,0), rgba(5,10,24,.96) 22%) !important;
+    padding-top: 10px !important;
+  }
+
+  .dialog-actions .btn,
+  .modal-actions .btn,
+  .preview-actions .btn {
+    width: 100% !important;
+  }
+}
