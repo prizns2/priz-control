@@ -734,6 +734,10 @@
     if (page === 'attendance') {
       currentPage = 'attendance';
       $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === 'attendance'));
+      // Do this here, not just inside renderAttendancePage(): navigation-stability.js
+      // caches rendered page slots per page+region key and can skip calling the
+      // renderer entirely on a repeat visit, which would leave "all" showing again.
+      hideAllRegionsOption();
       renderPage();
       return;
     }
