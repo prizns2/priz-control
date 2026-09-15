@@ -228,6 +228,12 @@
       motto.innerHTML = 'БЕЗОПАСНОСТЬ<br>СОЗДАЁТ ПОРЯДОК';
       actions.appendChild(motto);
     }
+    const motto2 = actions?.querySelector('.priz-top-motto');
+    if (motto2) {
+      // No quick-add button for this role: the button's grid column would
+      // otherwise stay reserved as dead space next to the region select.
+      motto2.style.setProperty('grid-column', canCreate() ? '2' : '1', 'important');
+    }
 
     const userCard = document.getElementById('userCard');
     if (userCard && !userCard.querySelector('.priz-profile-avatar')) {
