@@ -6,6 +6,28 @@
   let attendanceSelectedMonth = null;
   let attendanceArchiveCache = null;
   let attendanceLastPayload = null;
+  let removedAllRegionsOption = null;
+
+  // Табель always needs one real region — "Все регионы"/"Все мои регионы"
+  // has nothing to show and renderAttendancePage() silently swaps it out
+  // anyway, so don't offer it in the dropdown while this page is open.
+  function hideAllRegionsOption() {
+    const regionSelect = $('#regionSelect');
+    const allOption = regionSelect?.querySelector('option[value="all"]');
+    if (allOption) {
+      removedAllRegionsOption = allOption;
+      allOption.remove();
+    }
+  }
+
+  function restoreAllRegionsOption() {
+    const regionSelect = $('#regionSelect');
+    if (!regionSelect || !removedAllRegionsOption) return;
+    if (!regionSelect.querySelector('option[value="all"]')) {
+      regionSelect.insertBefore(removedAllRegionsOption, regionSelect.firstChild);
+    }
+    removedAllRegionsOption = null;
+  }
 
   const ATT_STATUS_CLASS = {
     '1': 'work',
@@ -598,6 +620,7 @@
     } else if (regionSelect?.value && regionSelect.value !== 'all') {
       regionCode = regionSelect.value;
     }
+    hideAllRegionsOption();
 
     const region = REGIONS[regionCode];
     $('#pageTitle').textContent = 'Табель посещения';
@@ -715,6 +738,7 @@
       return;
     }
 
+    restoreAllRegionsOption();
     return originalGo(page);
   };
 
