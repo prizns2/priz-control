@@ -1,0 +1,56 @@
+name: Deploy Pages (production + staging)
+
+on:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main (production root)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+
+      - name: Checkout staging (served under /staging/)
+        uses: actions/checkout@v4
+        with:
+          ref: staging
+          path: site/staging
+
+      - name: Remove staging's own .github (avoid duplicate workflow files in the artifact)
+        run: rm -rf site/staging/.github
+
+      - name: Verify production asset versions are in sync
+        run: python3 site/scripts/bump_versions.py --check
+
+      - name: Verify staging asset versions are in sync
+        run: python3 site/staging/scripts/bump_versions.py --check
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
