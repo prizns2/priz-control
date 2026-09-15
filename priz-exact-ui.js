@@ -138,14 +138,16 @@
           ${statCard('eval', 'Оценки', evalCount, 'за сегодня')}
         </section>
 
+        ${canCreate() ? `
         <section class="priz-quick-section">
           <h3>Быстрое добавление</h3>
-          <div class="priz-quick-grid ${canCreate() ? '' : 'readonly'}">
+          <div class="priz-quick-grid">
             ${quickCard('cat1', 'Категория 1', 'Добавить нарушение в категорию 1')}
             ${quickCard('cat2', 'Категория 2', 'Добавить нарушение в категорию 2')}
             ${quickCard('eval', 'Оценка', 'Добавить оценку или комментарий')}
           </div>
         </section>
+        ` : ''}
 
         <section class="priz-records-card">
           <header class="priz-records-head">
