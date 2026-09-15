@@ -1,6 +1,6 @@
 const APP_VERSION='0.4.8';
-const SUPABASE_URL='https://oxeqdypboelsczsauxlr.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY='sb_publishable_0Z1VcYQBS9VmZxW41Nq-PA_997MysiT';
+const SUPABASE_URL='https://wxbgjamaodvbypylarjm.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_X3pJ16OEHB89DD-JYTIJSg_MQqm3CiQ';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 
 const ROLE_LABEL={owner:'Владелец',boss:'Руководитель',senior:'Старший оператор',operator:'Оператор'};
