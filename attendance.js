@@ -95,6 +95,10 @@
         filter:brightness(1.18);outline:1px solid #5f4bc3;outline-offset:-1px
       }
       .att-cell.readable{cursor:pointer}
+      .att-cell.locked{cursor:not-allowed}
+      .att-cell.locked:hover{
+        outline:1px dashed #3a3f4c;outline-offset:-1px
+      }
       .att-cell.today{box-shadow:inset 0 0 0 1px rgba(139,92,246,.35)}
       .att-cell .comment-dot{
         position:absolute;right:4px;top:4px;width:5px;height:5px;border-radius:50%;
@@ -284,8 +288,12 @@
         const entry = entries.get(`${person.userId}|${date}`) || null;
         const cls = entry ? statusButtonClass(entry.status) : '';
         const canOpen = !!entry || !!payload.canEdit;
-        const modeCls = payload.canEdit ? 'editable' : (entry ? 'readable' : '');
+        const locked = !canOpen;
+        const modeCls = payload.canEdit ? 'editable' : (entry ? 'readable' : 'locked');
         const titleParts = [];
+        const lockedReason = payload.isArchive
+          ? 'Архивный месяц — редактирование недоступно'
+          : 'Редактировать может только старший оператор или владелец';
 
         if (entry) {
           titleParts.push(`${entry.status} — ${ATT_STATUS_LABEL[entry.status] || entry.status}`);
@@ -293,11 +301,14 @@
           if (entry.updatedByName) titleParts.push(`Изменил: ${entry.updatedByName}`);
         } else if (payload.canEdit) {
           titleParts.push('Нажмите, чтобы поставить отметку');
+        } else {
+          titleParts.push(lockedReason);
         }
 
         cells.push(`
           <td class="att-cell ${cls} ${modeCls} ${date === today ? 'today' : ''}"
               ${canOpen ? `data-att-user="${esc(person.userId)}" data-att-date="${esc(date)}"` : ''}
+              ${locked ? `data-att-locked="${esc(lockedReason)}"` : ''}
               title="${esc(titleParts.join('\n'))}">
             ${entry ? esc(entry.status) : '·'}
             ${entry?.comment ? '<i class="comment-dot"></i>' : ''}
@@ -559,6 +570,9 @@
   function bindAttendanceCells() {
     $$('.att-cell[data-att-user]').forEach(cell => {
       cell.onclick = () => openAttendanceCell(cell.dataset.attUser, cell.dataset.attDate);
+    });
+    $$('.att-cell[data-att-locked]').forEach(cell => {
+      cell.onclick = () => toast(cell.dataset.attLocked, true);
     });
   }
 
