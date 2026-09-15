@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>PRIZ Control</title>
-  <link rel="stylesheet" href="styles.css?v=20260912-28" />
-  <link rel="stylesheet" href="priz-exact-ui.css?v=20260913-10" />
-  <link rel="stylesheet" href="priz-responsive.css?v=20260914-22" />
-  <script src="priz-mobile-burger.js?v=20260914-21" defer></script>
+  <link rel="stylesheet" href="styles.css?v=16dc7aa094" />
+  <link rel="stylesheet" href="priz-exact-ui.css?v=1f484e3b14" />
+  <link rel="stylesheet" href="priz-responsive.css?v=f189d42f72" />
+  <script src="priz-mobile-burger.js?v=c037be0f32" defer></script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <script>
     window.prizCaptchaToken = null;
@@ -125,37 +125,90 @@
 
  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="app.js?v=20260912-28"></script>
-<script src="backup-monitor.js?v=20260912-28"></script>
-<script src="attendance.js?v=20260915-01"></script>
-<script src="attendance-fast.js?v=20260912-28"></script>
+<!--
+  Load order matters: every file below except app.js is a "patch" — it
+  reassigns a global function (go, buildShell, loadProfile, renderRecords,
+  sb.rpc, ...) that a file loaded earlier already defined, wrapping it with
+  extra behavior and calling the original inside. Reordering these tags can
+  silently break a feature (a later patch stops seeing an earlier one's
+  wrapper). ?v= is a content hash, not a date — never hand-edit it, run
+  `python scripts/bump_versions.py` after touching any of these files and
+  commit the resulting index.html diff (CI fails otherwise, see
+  .github/workflows/verify-asset-versions.yml).
 
-<script src="manager-access.js?v=20260912-28"></script>
-<script src="shared-operator-account.js?v=20260912-28"></script>
-<script src="shared-region-switch.js?v=20260912-28"></script>
-<script src="manager-ui.js?v=20260912-28"></script>
-<script src="manager-notifications.js?v=20260912-28"></script>
-<script src="manager-receipt-sync.js?v=20260912-28"></script>
+  app.js                        core app: auth/login, routing (go/buildShell),
+                                 dashboard, records CRUD, base renderers.
+  backup-monitor.js             owner "Управление": Supabase->B2 backup status card.
+  attendance.js                 Табель: grid rendering, per-cell edit rights
+                                 (owner/senior only), locked-cell toast.
+  attendance-fast.js            Табель: keyboard-driven quick status entry.
+  manager-access.js             adds role='manager': profile loading scoped to
+                                 a linked managers row instead of a region.
+  shared-operator-account.js    shared regional operator accounts: the
+                                 "кто сейчас работает" picker + persistence.
+  shared-region-switch.js       region handling for shared operator accounts.
+  manager-ui.js                 manager role UI: "Мои записи" view, patches
+                                 go/buildShell/renderRecords/recordsTable.
+  manager-notifications.js      manager notification bell + dropdown.
+  manager-receipt-sync.js       manager "Добавить чек" receipt upload flow.
+  server-status-owner-only.js   hides the "Сервер подключён" badge from
+                                 non-owner roles.
+  records-view-v5.js            records table/list rendering.
+  records-category-filter.js    category tabs/filters on the records views.
+  login-cleanup.js              tidies the login view on show/hide.
+  audit-history-enhancements.js История изменений: action titles, value/diff
+                                 formatting for audit_log entries.
+  deletion-requests.js          Заявки на удаление page (senior/boss/owner).
+  operator-media-save-fix.js    guards the upload-helper element from being
+                                 removed by mistake during record save.
+  operator-terminology.js       simplifies wording / hides technical record
+                                 IDs for the operator role.
+  operator-cleanup-fix.js       generic DOM cleanup pass for operator views.
+  manager-autofill-fix.js       autofills Менеджер when Магазин is selected
+                                 on the record form.
+  regional-user-management.js   owner "Управление": account list, create/edit
+                                 (calls the admin-users edge function).
+  performance-cache.js          wraps sb.rpc with a short-lived read cache.
+  live-refresh-fix.js           invalidates performance-cache entries after
+                                 writes so lists reflect fresh data.
+  navigation-stability.js       preserves scroll position across page/tab
+                                 navigation.
+  sidebar-icons.js              nav icon rendering/decoration.
+  priz-exact-ui.js              the polished dashboard (stat cards, sparklines).
+  role-ui-stability-fix.js      role-scoped region access stabilization,
+                                 incl. attendance region restrictions.
+-->
+<script src="app.js?v=28d1cd3fe1"></script>
+<script src="backup-monitor.js?v=7a475cc273"></script>
+<script src="attendance.js?v=92ecbb87a9"></script>
+<script src="attendance-fast.js?v=71d22dd3a8"></script>
 
-<script src="server-status-owner-only.js?v=20260912-28"></script>
+<script src="manager-access.js?v=e72d7b27de"></script>
+<script src="shared-operator-account.js?v=371349cfb3"></script>
+<script src="shared-region-switch.js?v=64f6fa03e3"></script>
+<script src="manager-ui.js?v=4c7db49269"></script>
+<script src="manager-notifications.js?v=3172f98e8f"></script>
+<script src="manager-receipt-sync.js?v=34ada75b62"></script>
 
-<script src="records-view-v5.js?v=20260912-28"></script>
-<script src="records-category-filter.js?v=20260912-28"></script>
+<script src="server-status-owner-only.js?v=60d8c736a6"></script>
 
-<script src="login-cleanup.js?v=20260912-28"></script>
-<script src="audit-history-enhancements.js?v=20260912-28"></script>
-<script src="deletion-requests.js?v=20260912-28"></script>
-<script src="operator-media-save-fix.js?v=20260912-28"></script>
-<script src="operator-terminology.js?v=20260912-28"></script>
-<script src="operator-cleanup-fix.js?v=20260912-28"></script>
-<script src="manager-autofill-fix.js?v=20260914-22"></script>
-<script src="regional-user-management.js?v=20260912-28"></script>
-<script src="performance-cache.js?v=20260912-28"></script>
-<script src="live-refresh-fix.js?v=20260913-11"></script>
-<script src="navigation-stability.js?v=20260912-28"></script>
-<script src="sidebar-icons.js?v=20260912-28"></script>
-<script src="priz-exact-ui.js?v=20260913-06"></script>
-<script src="role-ui-stability-fix.js?v=20260913-15"></script>
+<script src="records-view-v5.js?v=277335e313"></script>
+<script src="records-category-filter.js?v=49c450b4ce"></script>
+
+<script src="login-cleanup.js?v=1ccf84a68c"></script>
+<script src="audit-history-enhancements.js?v=ddb251bfda"></script>
+<script src="deletion-requests.js?v=4a7bdbdd08"></script>
+<script src="operator-media-save-fix.js?v=5483e68d08"></script>
+<script src="operator-terminology.js?v=9e1ddd691d"></script>
+<script src="operator-cleanup-fix.js?v=c1566b4373"></script>
+<script src="manager-autofill-fix.js?v=63495dd5bf"></script>
+<script src="regional-user-management.js?v=cea95f7215"></script>
+<script src="performance-cache.js?v=5c38474d54"></script>
+<script src="live-refresh-fix.js?v=56838194d0"></script>
+<script src="navigation-stability.js?v=9916063797"></script>
+<script src="sidebar-icons.js?v=12eac3ee97"></script>
+<script src="priz-exact-ui.js?v=d170f4cc42"></script>
+<script src="role-ui-stability-fix.js?v=90d7c5e58b"></script>
   <script>
     (() => {
       const originalSignInWithPassword = sb.auth.signInWithPassword.bind(sb.auth);
