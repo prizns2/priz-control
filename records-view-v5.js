@@ -23,6 +23,13 @@
   background-repeat: no-repeat !important;
   background-position: right 14px center !important;
   background-size: 18px 18px !important;
+
+  /* Chrome's native date input is intrinsically taller than a plain
+     text input at the same font size; pin it so it lines up with the
+     selects/buttons next to it in the toolbar row instead of sticking
+     up above them. */
+  box-sizing: border-box !important;
+  height: 44px !important;
 }
 
 #content input[type="date"]::-webkit-calendar-picker-indicator {
