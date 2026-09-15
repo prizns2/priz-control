@@ -1,0 +1,6 @@
+# Force LF line endings for all text files, regardless of platform or local
+# core.autocrlf settings. Without this, Windows checkouts store CRLF bytes
+# while Linux (CI) checkouts store LF bytes for the exact same commit --
+# scripts/bump_versions.py hashes raw file bytes, so that mismatch made every
+# asset look "changed" on GitHub Actions even when nothing actually changed.
+* text=auto eol=lf
