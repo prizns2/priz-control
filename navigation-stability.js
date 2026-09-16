@@ -483,6 +483,17 @@
   function invalidateNavigationCache(scope = 'all') {
     if (scope === 'all') {
       pageCache.clear();
+
+      // Forget which key is "already showing" too. Without this, a role
+      // switch (logout -> login as someone else) in the same tab leaves
+      // visibleKey pointing at the previous user's slot; the next render
+      // transition then detaches and CACHES that stale, still-populated
+      // slot under its old key (cacheDetachedSlot requires a truthy key,
+      // so a null visibleKey here makes it discard the slot instead of
+      // caching it) instead of discarding it, and a later navigation back
+      // to that same page+region key can silently restore the previous
+      // user's rendered DOM via showCached() without ever re-rendering.
+      visibleKey = null;
       return;
     }
 
