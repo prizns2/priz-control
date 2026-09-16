@@ -92,7 +92,7 @@
   async function applyRegionalUserView() {
     if (currentUser?.role !== 'owner') return;
 
-    const usersList = document.querySelector('.users-list');
+    const usersList = document.querySelector('#content .users-list');
     if (!usersList) return;
 
     const scope = document.getElementById('regionSelect')?.value || 'all';
@@ -152,7 +152,7 @@
         : `Пользователи · ${REGIONS?.[scope]?.name || 'Регион'}`;
     }
 
-    document.querySelectorAll('.regional-edit-user').forEach(btn => {
+    document.querySelectorAll('#content .regional-edit-user').forEach(btn => {
       btn.onclick = () => {
         const profile = profiles.find(p => p.id === btn.dataset.id);
         if (!profile) return;

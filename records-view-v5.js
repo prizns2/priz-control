@@ -14,7 +14,8 @@
     }
 
    /* Белая иконка календаря */
-#content input[type="date"] {
+#content input[type="date"],
+#recordDialogBody input[type="date"] {
   color-scheme: dark;
   padding-right: 42px !important;
 
@@ -32,7 +33,30 @@
   height: 44px !important;
 }
 
-#content input[type="date"]::-webkit-calendar-picker-indicator {
+#content input[type="date"]::-webkit-calendar-picker-indicator,
+#recordDialogBody input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0 !important;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+}
+
+/* Та же иконка-часы для времени в форме Оценки */
+#recordDialogBody input[type="time"] {
+  color-scheme: dark;
+  padding-right: 42px !important;
+
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3.5 2'/%3E%3C/svg%3E") !important;
+
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 18px 18px !important;
+
+  box-sizing: border-box !important;
+  height: 44px !important;
+}
+
+#recordDialogBody input[type="time"]::-webkit-calendar-picker-indicator {
   opacity: 0 !important;
   cursor: pointer;
   width: 30px;
@@ -40,11 +64,19 @@
 }
   `;
   document.head.appendChild(style);
-// Открываем календарь по клику в любое место поля даты
+// Открываем календарь/время только по клику на саму иконку (справа),
+// иначе showPicker() перехватывает клик по остальному полю и мешает
+// вводить дату/время вручную с клавиатуры.
 document.addEventListener('click', (e) => {
-  const input = e.target.closest('#content input[type="date"]');
+  const input = e.target.closest(
+    '#content input[type="date"], #recordDialogBody input[type="date"], #recordDialogBody input[type="time"]'
+  );
 
   if (!input) return;
+
+  const rect = input.getBoundingClientRect();
+  const iconZoneStart = rect.right - 42;
+  if (e.clientX < iconZoneStart) return;
 
   try {
     input.showPicker();

@@ -54,10 +54,10 @@
       d.id = 'deletionRequestDialog';
       d.className = 'dialog';
       d.innerHTML = `<form method="dialog" class="dialog-card delreq-dialog-card" id="deletionRequestForm">
-        <div class="dialog-head"><div><div class="eyebrow">ЗАЯВКА НА УДАЛЕНИЕ</div><h3 style="margin-top:6px">Причина удаления</h3></div><button class="close-x" value="cancel">×</button></div>
+        <div class="dialog-head"><div><div class="eyebrow">ЗАЯВКА НА УДАЛЕНИЕ</div><h3 style="margin-top:6px">Причина удаления</h3></div><button class="close-x" value="cancel" formnovalidate>×</button></div>
         <p class="muted small">Коротко объясните руководителю, почему запись нужно удалить. Минимум 5 символов.</p>
-        <label>Причина<textarea id="deletionRequestReason" maxlength="1000" placeholder="Например: запись внесена дважды" required></textarea></label>
-        <div class="dialog-actions"><button value="cancel" class="btn ghost">Отмена</button><button type="button" id="deletionRequestSend" class="btn danger">Отправить руководителю</button></div>
+        <label>Причина<textarea id="deletionRequestReason" maxlength="1000" minlength="5" placeholder="Например: запись внесена дважды" required></textarea></label>
+        <div class="dialog-actions"><button value="cancel" class="btn ghost" formnovalidate>Отмена</button><button type="button" id="deletionRequestSend" class="btn danger">Отправить руководителю</button></div>
       </form>`;
       document.body.appendChild(d);
     }
@@ -155,9 +155,9 @@
       <div class="delreq-grid">
         <div class="delreq-field"><div class="delreq-k">Продавец</div><div class="delreq-v">${escText(r.employee || '—')}</div></div>
         <div class="delreq-field"><div class="delreq-k">Менеджер</div><div class="delreq-v">${escText(r.manager || '—')}</div></div>
-        <div class="delreq-field"><div class="delreq-k">Тип нарушения</div><div class="delreq-v">${escText(r.violation_type || '—')}</div></div>
+        <div class="delreq-field"><div class="delreq-k">${r.kind === 'evaluation' ? 'Балл' : 'Тип нарушения'}</div><div class="delreq-v">${r.kind === 'evaluation' ? escText(`${r.evaluation_data?.total ?? '—'} / 10`) : escText(r.violation_type || '—')}</div></div>
       </div>
-      ${r.story ? `<div class="delreq-story">${escText(r.story)}</div>` : ''}
+      ${r.story ? `<div class="delreq-story">${escText(r.story)}</div>` : (r.evaluation_data?.comment ? `<div class="delreq-story">${escText(r.evaluation_data.comment)}</div>` : '')}
       <div class="delreq-reason"><b>Причина удаления:</b> ${escText(req.reason || '—')}</div>
       ${req.bossComment ? `<div class="delreq-sub" style="margin-top:8px"><b>Комментарий руководителя:</b> ${escText(req.bossComment)}</div>` : ''}
       ${req.status === 'stale' ? `<div class="delreq-warning">${escText(req.staleReason || 'Запись изменилась. Создайте новую заявку.')}</div>` : ''}
@@ -198,6 +198,7 @@
     d.showModal();
     setTimeout(() => reason.focus(), 0);
     send.onclick = async () => {
+      if (!reason.reportValidity()) return;
       const text = reason.value.trim();
       if (text.length < 5) { toast('Укажите причину удаления', true); return; }
       setBusy(send,true,'Отправляем…');
@@ -300,7 +301,7 @@
       if (currentUser?.role !== 'senior') return;
       try {
         const r = await fetchRecordById(id);
-        if (!r || r.kind === 'eval') return;
+        if (!r) return;
         const root = document.getElementById('viewDialogBody');
         const actions = root?.querySelector('.dialog-actions');
         if (!actions || actions.querySelector('.delreq-request-button')) return;
@@ -310,6 +311,26 @@
         btn.onclick = () => openRequestDialog(id);
         actions.insertBefore(btn, actions.firstChild);
       } catch (e) { console.warn('Deletion request button failed', e); }
+    };
+  }
+
+  const baseOpenRecordForm = window.openRecordForm;
+  if (typeof baseOpenRecordForm === 'function') {
+    window.openRecordForm = async function(kind, existing, regionOverride){
+      const result = await baseOpenRecordForm.call(this, kind, existing, regionOverride);
+      if (currentUser?.role !== 'senior' || !existing) return result;
+      try {
+        const root = document.getElementById('recordDialogBody');
+        const actions = root?.querySelector('.dialog-actions');
+        if (!actions || actions.querySelector('.delreq-request-button')) return result;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn danger delreq-request-button';
+        btn.textContent = 'Запросить удаление';
+        btn.onclick = () => openRequestDialog(existing.id);
+        actions.insertBefore(btn, actions.firstChild);
+      } catch (e) { console.warn('Deletion request button (edit) failed', e); }
+      return result;
     };
   }
 

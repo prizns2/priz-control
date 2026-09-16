@@ -505,6 +505,13 @@
           const skipped = Number(data?.skippedExisting || 0);
           toast(`2/2 готово: добавлено ${added}${skipped ? `, пропущено заполненных ${skipped}` : ''}`);
 
+          // navigation-stability.js caches the rendered page by page+region key
+          // and skips re-rendering when that key hasn't changed — without this,
+          // renderPage() below would be a silent no-op and the grid would only
+          // pick up the new data after navigating away and back.
+          if (typeof window.prizInvalidateNavigationCache === 'function') {
+            window.prizInvalidateNavigationCache('attendance');
+          }
           await renderPage();
         } catch (err) {
           console.error(err);
@@ -644,6 +651,9 @@
       if (error) throw error;
 
       toast(`Табель очищен. Удалено отметок: ${Number(data?.deleted || 0)}`);
+      if (typeof window.prizInvalidateNavigationCache === 'function') {
+        window.prizInvalidateNavigationCache('attendance');
+      }
       await renderPage();
     } catch (err) {
       console.error(err);

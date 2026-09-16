@@ -129,6 +129,22 @@
     if (mErr) throw mErr;
     if (pErr) throw pErr;
 
+    let managerList = managers || [];
+
+    // The linked manager record may since have been closed/deactivated —
+    // keep it in the list (flagged) so editing this account doesn't silently
+    // drop a still-valid link or block saving with "выбери менеджера".
+    if (existingManagerId && !managerList.some(m => m.id === existingManagerId)) {
+      const { data: closedManager, error: cErr } = await sb
+        .from('managers')
+        .select('id,full_name,region_id,is_active')
+        .eq('id', existingManagerId)
+        .maybeSingle();
+
+      if (cErr) throw cErr;
+      if (closedManager) managerList = [...managerList, closedManager];
+    }
+
     const busy = new Map(
       (linkedProfiles || [])
         .filter(x => x.manager_id)
@@ -136,7 +152,7 @@
     );
 
     return {
-      managers: managers || [],
+      managers: managerList,
       busy,
       existingManagerId
     };
@@ -181,7 +197,7 @@
                 data-name="${esc(m.full_name)}"
                 ${managerData.existingManagerId === m.id ? 'selected' : ''}
                 ${unavailable ? 'disabled' : ''}>
-          ${esc(regionName)} · ${esc(m.full_name)}${unavailable ? ' · аккаунт уже есть' : ''}
+          ${esc(regionName)} · ${esc(m.full_name)}${unavailable ? ' · аккаунт уже есть' : ''}${m.is_active === false ? ' · закрыт' : ''}
         </option>
       `;
     }).join('');

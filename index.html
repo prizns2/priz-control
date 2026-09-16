@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>PRIZ Control</title>
-  <link rel="stylesheet" href="styles.css?v=cce292b832" />
+  <link rel="stylesheet" href="styles.css?v=0b508d81c4" />
   <link rel="stylesheet" href="priz-exact-ui.css?v=5048b5218a" />
   <link rel="stylesheet" href="priz-responsive.css?v=b7832c3166" />
   <script src="priz-mobile-burger.js?v=a8f067930b" defer></script>
@@ -27,7 +27,7 @@
     .mfa-view{min-height:100vh;display:grid;place-items:center;padding:24px;background:#090a0f;color:#fff;box-sizing:border-box}
     .mfa-shell{width:min(440px,100%);display:grid;gap:16px;justify-items:center}
     .mfa-card{width:100%;background:#11131a;border:1px solid #2a2d38;border-radius:18px;padding:26px;box-sizing:border-box;box-shadow:0 24px 70px rgba(0,0,0,.35)}
-    .mfa-card h2{margin:4px 0 8px}.mfa-card p{line-height:1.5}.mfa-card .mfa-qr{display:block;width:220px;max-width:100%;margin:18px auto;background:#fff;border-radius:12px;padding:10px;box-sizing:border-box}
+    .mfa-card h2{margin:4px 0 8px}.mfa-card p{line-height:1.5}.mfa-card .mfa-qr{display:block;width:220px;max-width:100%;margin:18px auto;background:#fff;border-radius:12px;padding:10px;box-sizing:border-box}.mfa-card .mfa-qr svg{display:block;width:100%;height:auto}
     .mfa-code{width:100%;font-size:22px;letter-spacing:5px;text-align:center;box-sizing:border-box}
     .mfa-secret{margin-top:12px;padding:10px 12px;border:1px solid #2a2d38;border-radius:10px;background:#0b0d12;word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:12px}
     .mfa-actions{display:grid;gap:10px;margin-top:16px}
@@ -178,12 +178,12 @@
   role-ui-stability-fix.js      role-scoped region access stabilization,
                                  incl. attendance region restrictions.
 -->
-<script src="app.js?v=047aa5d316"></script>
+<script src="app.js?v=7d42b9dd2e"></script>
 <script src="backup-monitor.js?v=5646c5bbb2"></script>
 <script src="attendance.js?v=b5d7c35bd3"></script>
-<script src="attendance-fast.js?v=b3dc587957"></script>
+<script src="attendance-fast.js?v=aef64793fb"></script>
 
-<script src="manager-access.js?v=e69354acb1"></script>
+<script src="manager-access.js?v=ec3efe1b2b"></script>
 <script src="shared-operator-account.js?v=ddfe08dbd7"></script>
 <script src="shared-region-switch.js?v=d41e1d8a0b"></script>
 <script src="manager-ui.js?v=464e2408fa"></script>
@@ -192,17 +192,17 @@
 
 <script src="server-status-owner-only.js?v=9dc6f471e9"></script>
 
-<script src="records-view-v5.js?v=f479238ff4"></script>
+<script src="records-view-v5.js?v=b9fb4da0d3"></script>
 <script src="records-category-filter.js?v=4bf748ce8d"></script>
 
 <script src="login-cleanup.js?v=1a943928e7"></script>
 <script src="audit-history-enhancements.js?v=f16c10a8fb"></script>
-<script src="deletion-requests.js?v=561af86ba6"></script>
+<script src="deletion-requests.js?v=469ffb3df2"></script>
 <script src="operator-media-save-fix.js?v=d164a4849e"></script>
 <script src="operator-terminology.js?v=9ec910573d"></script>
 <script src="operator-cleanup-fix.js?v=f9b0bc93f0"></script>
 <script src="manager-autofill-fix.js?v=c4913e1613"></script>
-<script src="regional-user-management.js?v=9df6c4088d"></script>
+<script src="regional-user-management.js?v=6b5b2ebccf"></script>
 <script src="performance-cache.js?v=f339915bc8"></script>
 <script src="live-refresh-fix.js?v=b0ed9508b6"></script>
 <script src="navigation-stability.js?v=5c4035c10f"></script>
@@ -308,7 +308,7 @@
           const factorId = enrolled.id;
           const qr = enrolled.totp?.qr_code || '';
           const secret = enrolled.totp?.secret || '';
-          body.innerHTML = `<img class="mfa-qr" src="${qr}" alt="QR-код 2FA"><label>Код из приложения<input id="mfaEnrollCode" class="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required></label><div class="mfa-secret"><b>Резервный ключ:</b><br>${secret}</div><div class="muted small" style="margin-top:8px">Не отправляйте QR-код и резервный ключ другим людям.</div><button id="mfaEnrollBtn" class="btn primary wide" type="button" style="margin-top:16px">Включить 2FA</button>`;
+          body.innerHTML = `<div class="mfa-qr" role="img" aria-label="QR-код 2FA">${qr}</div><label>Код из приложения<input id="mfaEnrollCode" class="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required></label><div class="mfa-secret"><b>Резервный ключ:</b><br>${secret}</div><div class="muted small" style="margin-top:8px">Не отправляйте QR-код и резервный ключ другим людям.</div><button id="mfaEnrollBtn" class="btn primary wide" type="button" style="margin-top:16px">Включить 2FA</button>`;
           const codeInput = document.getElementById('mfaEnrollCode');
           const btn = document.getElementById('mfaEnrollBtn');
           codeInput.focus();
