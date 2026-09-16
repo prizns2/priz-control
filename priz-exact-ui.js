@@ -7,6 +7,7 @@
     cat1: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 7.4 3.9-7.4 3.9-7.4-3.9z"/><path d="m4.6 11.8 7.4 3.9 7.4-3.9"/><path d="m4.6 15.8 7.4 3.9 7.4-3.9"/></svg>`,
     cat2: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.8h7l3.6 3.6v12.8H7z"/><path d="M14 3.8v4h3.6"/><path d="M9.5 11.3h5M9.5 14.5h5"/></svg>`,
     eval: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3.6 2.55 5.17 5.7.83-4.12 4.02.97 5.68L12 16.62 6.9 19.3l.97-5.68L3.75 9.6l5.7-.83z"/></svg>`,
+    distribution: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 20 8v8l-8 4.5L4 16V8z"/><path d="M4 8l8 4.5L20 8"/><path d="M12 12.5V21"/></svg>`,
     records: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.8h7l3.5 3.5v12.9H7z"/><path d="M14 3.8v4h3.5"/><path d="M9.5 11.2h5M9.5 14.5h5M9.5 17.8h3.6"/></svg>`,
     arrow: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>`,
     external: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 5h5v5"/><path d="m19 5-8 8"/><path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>`
@@ -145,6 +146,7 @@
             ${quickCard('cat1', 'Категория 1', 'Добавить нарушение в категорию 1')}
             ${quickCard('cat2', 'Категория 2', 'Добавить нарушение в категорию 2')}
             ${quickCard('eval', 'Оценка', 'Добавить оценку или комментарий')}
+            ${quickCard('distribution', 'Распределение товара', 'Уборка витрин на ночь и время распределения')}
           </div>
         </section>
         ` : ''}

@@ -43,7 +43,7 @@
 
   function kindText(v) {
     const s = String(v ?? '');
-    return s === 'cat1' ? 'Категория 1' : s === 'cat2' ? 'Категория 2' : (s === 'evaluation' || s === 'eval') ? 'Оценка' : s;
+    return s === 'cat1' ? 'Категория 1' : s === 'cat2' ? 'Категория 2' : (s === 'evaluation' || s === 'eval') ? 'Оценка' : s === 'distribution' ? 'Распределение товара' : s;
   }
 
   function valueText(key, value) {
@@ -155,6 +155,19 @@
         if (Number(bs[i] || 0) !== Number(as[i] || 0)) pushItem(out, `eval:score:${i}`, criterion, `eval:score:${i}`, Number(bs[i] || 0), Number(as[i] || 0), event);
       });
       if ((before.comment || '') !== (after.comment || '')) pushItem(out, 'eval:comment', 'Комментарий', 'eval:comment', before.comment, after.comment, event);
+    }
+
+    if ((ch.distribution_data?.before || ch.distribution_data?.after) && typeof DISTRIBUTION_GROUPS !== 'undefined') {
+      const before = ch.distribution_data.before || {};
+      const after = ch.distribution_data.after || {};
+      const removalLabel = v => (DISTRIBUTION_REMOVAL_OPTIONS.find(o => o.value === v)?.label) || '—';
+      DISTRIBUTION_GROUPS.forEach(g => {
+        const b = before[g.key] || {}, a = after[g.key] || {};
+        if ((b.removal || '') !== (a.removal || '')) pushItem(out, `dist:removal:${g.key}`, `${g.label} · прибирання`, `dist:removal:${g.key}`, removalLabel(b.removal), removalLabel(a.removal), event);
+        const bTime = b.norm ? 'Норма' : (b.time || '');
+        const aTime = a.norm ? 'Норма' : (a.time || '');
+        if (bTime !== aTime) pushItem(out, `dist:time:${g.key}`, `${g.label} · час розподілу`, `dist:time:${g.key}`, bTime, aTime, event);
+      });
     }
 
     return out;
@@ -275,6 +288,15 @@
         if (line.querySelector('span')?.textContent.trim() === criterion) line.classList.add('priz-changed-field');
       }
     });
+
+    if (typeof DISTRIBUTION_GROUPS !== 'undefined') {
+      DISTRIBUTION_GROUPS.forEach(g => {
+        if (!changed.has(`dist:removal:${g.key}`) && !changed.has(`dist:time:${g.key}`)) return;
+        for (const line of root.querySelectorAll('.audit-line')) {
+          if (line.querySelector('span')?.textContent.trim() === g.label) line.classList.add('priz-changed-field');
+        }
+      });
+    }
 
     const headerChanges = [];
     if (changed.has('record_date')) headerChanges.push('Дата');
