@@ -44,6 +44,7 @@
   function notificationTypeLabel(kind) {
     if (kind === 'cat1') return 'КАТ. 1';
     if (kind === 'cat2') return 'КАТ. 2';
+    if (kind === 'distribution') return 'РАСПРЕД.';
     return 'ОЦЕНКА';
   }
 
@@ -53,6 +54,7 @@
       const total = scores.reduce((sum, value) => sum + Number(value || 0), 0);
       return `Оценка${scores.length ? ` · ${total} / 10` : ''}`;
     }
+    if (item.kind === 'distribution') return 'Распределение товара';
     return item.violationType || 'Нарушение';
   }
 

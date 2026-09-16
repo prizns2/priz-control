@@ -45,7 +45,7 @@
   function escText(v){ return typeof esc === 'function' ? esc(v) : String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
   function statusMeta(s){ return STATUS_META[s] || {label:s||'—',cls:'muted'}; }
   function regionName(id){ return REGION_BY_UUID?.[id]?.name || 'Регион'; }
-  function recordKindLabel(k){ return k === 'cat1' ? 'Категория 1' : k === 'cat2' ? 'Категория 2' : k === 'evaluation' ? 'Оценка' : (k || '—'); }
+  function recordKindLabel(k){ return k === 'cat1' ? 'Категория 1' : k === 'cat2' ? 'Категория 2' : k === 'evaluation' ? 'Оценка' : k === 'distribution' ? 'Распределение товара' : (k || '—'); }
   function formatWhen(v){ try { return fmtDateTime(v); } catch (_) { return v || '—'; } }
 
   function ensureDialogs(){
@@ -155,7 +155,7 @@
       <div class="delreq-grid">
         <div class="delreq-field"><div class="delreq-k">Продавец</div><div class="delreq-v">${escText(r.employee || '—')}</div></div>
         <div class="delreq-field"><div class="delreq-k">Менеджер</div><div class="delreq-v">${escText(r.manager || '—')}</div></div>
-        <div class="delreq-field"><div class="delreq-k">${r.kind === 'evaluation' ? 'Балл' : 'Тип нарушения'}</div><div class="delreq-v">${r.kind === 'evaluation' ? escText(`${r.evaluation_data?.total ?? '—'} / 10`) : escText(r.violation_type || '—')}</div></div>
+        <div class="delreq-field"><div class="delreq-k">${r.kind === 'evaluation' ? 'Балл' : r.kind === 'distribution' ? 'Прибрано' : 'Тип нарушения'}</div><div class="delreq-v">${r.kind === 'evaluation' ? escText(`${r.evaluation_data?.total ?? '—'} / 10`) : r.kind === 'distribution' ? escText(`${Object.values(r.distribution_data || {}).filter(x => x?.removal === 'removed').length} / 4`) : escText(r.violation_type || '—')}</div></div>
       </div>
       ${r.story ? `<div class="delreq-story">${escText(r.story)}</div>` : (r.evaluation_data?.comment ? `<div class="delreq-story">${escText(r.evaluation_data.comment)}</div>` : '')}
       <div class="delreq-reason"><b>Причина удаления:</b> ${escText(req.reason || '—')}</div>
