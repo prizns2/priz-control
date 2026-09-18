@@ -262,7 +262,8 @@ document.addEventListener('click', (e) => {
   function installOperatorSelectImmediately() {
     if (
       currentPage !== 'records' ||
-      currentUser?.role === 'manager'
+      currentUser?.role === 'manager' ||
+      currentUser?.role === 'ops_manager'
     ) {
       return false;
     }
