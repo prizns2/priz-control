@@ -152,6 +152,8 @@
                                  go/buildShell/renderRecords/recordsTable.
   manager-notifications.js      manager notification bell + dropdown.
   manager-receipt-sync.js       manager "Добавить чек" receipt upload flow.
+  ops-manager-ui.js             adds role='ops_manager': region-wide read-only
+                                 reviewer, no dashboard/Табель/receipts/notifs.
   server-status-owner-only.js   hides the "Сервер подключён" badge from
                                  non-owner roles.
   records-view-v5.js            records table/list rendering.
@@ -190,6 +192,7 @@
 <script src="manager-ui.js?v=464e2408fa"></script>
 <script src="manager-notifications.js?v=1eeed06096"></script>
 <script src="manager-receipt-sync.js?v=5441e9d54c"></script>
+<script src="ops-manager-ui.js?v=5386af8b7f"></script>
 
 <script src="server-status-owner-only.js?v=9dc6f471e9"></script>
 
@@ -209,7 +212,7 @@
 <script src="navigation-stability.js?v=4f3cd019b8"></script>
 <script src="sidebar-icons.js?v=e84538fe42"></script>
 <script src="priz-exact-ui.js?v=3a7ce7d08b"></script>
-<script src="role-ui-stability-fix.js?v=f7990ee1d7"></script>
+<script src="role-ui-stability-fix.js?v=e19c34511c"></script>
   <script>
     (() => {
       const originalSignInWithPassword = sb.auth.signInWithPassword.bind(sb.auth);

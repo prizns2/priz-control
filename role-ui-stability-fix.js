@@ -145,7 +145,7 @@
   function shouldShowAttendanceNav() {
     const role = roleNow();
 
-    if (role === 'manager') return false;
+    if (role === 'manager' || role === 'ops_manager') return false;
 
     // Owner / boss always keep the Attendance section,
     // but blocked regions are removed INSIDE Attendance.
