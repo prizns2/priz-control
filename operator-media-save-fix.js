@@ -79,10 +79,26 @@
           String(form.dataset.prizSavedRecordId || '').trim();
 
         if (alreadySavedId) {
-          return baseSaveRecord(
-            { ...record, id: alreadySavedId },
-            true
-          );
+          try {
+            return await baseSaveRecord(
+              { ...record, id: alreadySavedId },
+              true
+            );
+          } catch (err) {
+            // This retry exists only to resume a media upload that failed
+            // after the record itself was already created — the record's
+            // fields don't actually need to change. Roles without UPDATE
+            // rights on records (e.g. operator) can't perform that no-op
+            // update at all: PostgREST reports the 0-row result as
+            // PGRST116 ("Cannot coerce the result to a single JSON
+            // object"). Treat that specific case as nothing-to-update and
+            // keep going with the record as already saved, instead of
+            // surfacing a confusing error and blocking the upload retry.
+            if (err?.code === 'PGRST116') {
+              return { ...record, id: alreadySavedId };
+            }
+            throw err;
+          }
         }
 
         const saved = await baseSaveRecord(record, false);
