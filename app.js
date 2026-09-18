@@ -117,6 +117,10 @@ function buildShell(){
   if(['owner','boss'].includes(currentUser.role))rs.innerHTML=`<option value="all">Все регионы</option>${Object.values(REGIONS).map(r=>`<option value="${esc(r.code)}">${esc(r.name)}</option>`).join('')}`;
   else if(allowed.length>1)rs.innerHTML=`<option value="all">Все мои регионы</option>${allowed.map(code=>`<option value="${esc(code)}">${esc(REGIONS[code]?.name||code)}</option>`).join('')}`;
   else rs.innerHTML=allowed.map(code=>`<option value="${esc(code)}">${esc(REGIONS[code]?.name||code)}</option>`).join('');
+  const isSingleRegionSelect=rs.options.length<=1;
+  rs.disabled=isSingleRegionSelect;
+  rs.classList.toggle('single-region-mode',isSingleRegionSelect);
+  rs.classList.toggle('multi-region-mode',!isSingleRegionSelect);
   $('#quickAddBtn').classList.toggle('hidden',!canCreate());
 }
 function go(page){if(page==='audit'&&!['owner','boss'].includes(currentUser.role))page='dashboard';if(page==='settings'&&currentUser.role!=='owner')page='dashboard';currentPage=page;$$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.page===page));renderPage()}
