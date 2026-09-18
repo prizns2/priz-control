@@ -41,6 +41,7 @@ label{display:grid;gap:7px;color:#d9dce2;font-size:13px;font-weight:650}input,se
 .media-modal-image{display:block;max-width:96vw;max-height:86vh;object-fit:contain;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.55)}
 .media-modal-shell .lightbox-close{position:fixed;top:18px;right:22px;z-index:2;width:44px;height:44px;border-radius:12px;border:1px solid #343946;background:#171a21;color:#fff;font-size:27px;line-height:1;cursor:pointer}
 .media-modal-shell .lightbox-caption{position:fixed;left:24px;right:24px;bottom:18px;text-align:center;color:#cfd3dc;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.media-unsupported{display:grid;gap:14px;justify-items:center;text-align:center;color:#cfd3dc;padding:32px;background:#171a21;border:1px solid #343946;border-radius:14px;max-width:420px}
 
 
 /* v0.3.2 — fullscreen image stays inside the currently open native dialog */
