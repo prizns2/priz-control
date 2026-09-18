@@ -270,7 +270,7 @@
       paintSharedUserCard();
     } else {
       const regionSelect = document.getElementById('regionSelect');
-      if (regionSelect) regionSelect.disabled = false;
+      if (regionSelect && !regionSelect.classList.contains('single-region-mode')) regionSelect.disabled = false;
     }
 
     return result;
